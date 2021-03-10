@@ -8,7 +8,7 @@ from torch.utils.data import DataLoader as torch_DataLoader
 import settings
 import sim_utils
 from simulation_run import SimulationRun
-from data_item import DataItem
+from data_item import DataItem, InputTargetPair
 
 class DataModes(Enum) :
     TRAINING = auto()
@@ -19,7 +19,7 @@ class Dataset(torch_Dataset) :
     """
     represents a torch-compatible collection of simulation data
     """
-
+#{{{
     def __init__(self, mode) :
         # populates self.run_pairs, which contains pairs of __Run instances,
         # each pair sorted in such a way that the lower delta_L comes first
@@ -47,15 +47,23 @@ class Dataset(torch_Dataset) :
         if mode is DataModes.TESTING :
             self.run_pairs = self.run_pairs[: settings.NSAMPLES_TESTING]
         elif mode is DataModes.VALIDATION :
-            self.run_pairs = self.run_pairs[settings.NSAMPLES_TESTING : settings.NSAMPLES_TESTING+settings.NSAMPLES_VALIDATION]
+            self.run_pairs = self.run_pairs[settings.NSAMPLES_TESTING
+                                            : settings.NSAMPLES_TESTING+settings.NSAMPLES_VALIDATION]
         elif mode is DataModes.TRAINING :
             self.run_pairs = self.run_pairs[settings.NSAMPLES_TESTING+settings.NSAMPLES_VALIDATION :]
 
     def __getitem__(self, idx) :
-        return DataItem(self.run_pairs[idx][0]), DataItem(self.run_pairs[idx][1])
+        item_idx = idx // 48
+        augmentation_index = idx % 48
+        return InputTargetPair(DataItem(self.run_pairs[item_idx][0]),
+                               DataItem(self.run_pairs[item_idx][1])) \
+                   .augment_data(augmentation_index) \
+                   .to_torch()
 
     def __len__(self) :
-        return len(self.run_pairs)
+        # note that we have 48 augmented vesions for each item!
+        return 48 * len(self.run_pairs)
+#}}}
 
 class DataLoader(torch_DataLoader) :
     """
