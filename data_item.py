@@ -40,7 +40,7 @@ class DataItem :
 
         self.displacement = sim_utils.get_displacement(x1, x2, BoxSize)
 
-        # we need to channel dimension at the beginning
+        # we need to have channel dimension at the beginning
         # (channel is the 3d dimensionality)
         self.displacement = np.moveaxis(self.displacement, -1, 0)
 
@@ -48,6 +48,19 @@ class DataItem :
             self.tensor = self.displacement
         else :
             self.tensor = np.concatenate((self.density, self.displacement), axis=0)
+
+    def normalize(self, displacement_norm, density_norm) :
+        # cannot be called after to_torch()
+        if settings.USE_DENSITY :
+            assert density_norm is not None
+            self.tensor[0, ...] = density_norm(self.tensor[0, ...])
+        else :
+            assert density_norm is None
+
+        offset = 1 if settings.USE_DENSITY else 0
+        self.tensor[offset:, ...] = displacement_norm(self.tensor[offset:, ...])
+
+        return self
 
     def __reflect(self, indices) :
         # indices labels the axes that should be reflected
@@ -117,6 +130,13 @@ class InputTargetPair :
     def __init__(self, item1, item2) :
         self.item1 = item1
         self.item2 = item2
+
+    def normalize(self, displacement_norm, density_norm) :
+        # performs normalization according to the supplied functions
+        # Needs to be called prior to to_torch()
+        self.item1 = self.item1.normalize(displacement_norm, density_norm)
+        self.item2 = self.item2.normalize(displacement_norm, density_norm)
+        return self
 
     def augment_data(self, rand_int=None) :
         # performs the full set of data augmentations necessary.

@@ -15,6 +15,14 @@ class DataModes(Enum) :
     VALIDATION = auto()
     TESTING = auto()
 
+    def __str__(self) :
+        if self is DataModes.TRAINING :
+            return 'training'
+        elif self is DataModes.VALIDATION :
+            return 'validation'
+        elif self is DataModes.TESTING :
+            return 'testing'
+
 class Dataset(torch_Dataset) :
     """
     represents a torch-compatible collection of simulation data
@@ -44,19 +52,30 @@ class Dataset(torch_Dataset) :
         random.seed(settings.DATASET_SHUFFLING_SEED)
         random.shuffle(self.run_pairs)
         
-        if mode is DataModes.TESTING :
+        self.mode = mode
+        if self.mode is DataModes.TESTING :
             self.run_pairs = self.run_pairs[: settings.NSAMPLES_TESTING]
-        elif mode is DataModes.VALIDATION :
+        elif self.mode is DataModes.VALIDATION :
             self.run_pairs = self.run_pairs[settings.NSAMPLES_TESTING
                                             : settings.NSAMPLES_TESTING+settings.NSAMPLES_VALIDATION]
-        elif mode is DataModes.TRAINING :
+        elif self.mode is DataModes.TRAINING :
             self.run_pairs = self.run_pairs[settings.NSAMPLES_TESTING+settings.NSAMPLES_VALIDATION :]
 
     def __getitem__(self, idx) :
+        # figure out which run and which data augmentation this idx refers to
         item_idx = idx // 48
         augmentation_index = idx % 48
+
+        # get the normalization functions
+        if settings.USE_DENSITY :
+            density_norm = settings.DENSITY_NORMALIZATION[self.mode]
+        else :
+            density_norm = None
+        displacement_norm = settings.DISPLACEMENT_NORMALIZATION[self.mode]
+
         return InputTargetPair(DataItem(self.run_pairs[item_idx][0]),
                                DataItem(self.run_pairs[item_idx][1])) \
+                   .normalize(displacement_norm, density_norm) \
                    .augment_data(augmentation_index) \
                    .to_torch()
 
