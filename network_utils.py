@@ -46,7 +46,11 @@ def get_groups(group_mode, in_layout, out_layout) :
     if group_mode is None or group_mode is GroupModes.ALL :
         return 1
     elif group_mode is GroupModes.SINGLE :
-        return min(in_layout.channels, out_layout.channels)
+        g = min(in_layout.channels, out_layout.channels)
+        if in_layout.channels % g == 0 and out_layout.channels % g == 0 :
+            return g
+        else :
+            return get_groups(GroupModes.ALL, None, None)
     elif group_mode is GroupModes.BUNDLE :
         return 4 if out_layout.density_channels != 0 else 3
     else :
