@@ -45,9 +45,6 @@ GLASS_SIDE = 64
 #              'h' (hubble parameter)
 DATA_PATH = '/projects/QUIJOTE/Leander/SU/ML_fixed_cosmo_DMonly'
 
-# should be set from the main thread
-DEVICE = None
-
 DATALOADER_ARGS = dict(batch_size=1,
                        shuffle=True,
                        num_workers=4,
@@ -69,5 +66,21 @@ NORMALIZATION_FILE = 'normalization.npz'
 # and whose items are callables
 # They need to be constructed on start-up using the data stored in
 # NORMALIZATION_FILE
-DENSITY_NORMALIZATION = {}
-DISPLACEMENT_NORMALIZATION = {}
+DENSITY_NORMALIZATION = None
+DISPLACEMENT_NORMALIZATION = None
+
+# at the moment the network doesn't take any arguments, but this may well
+# change in the future
+NETWORK_ARGS = dict()
+
+# set this to a high number (but not too high since we allocate some buffers proportionally)
+EPOCHS = 1000
+
+# where we store the training and validation loss
+# TODO this should probably be set by the startup.py script, with some time stamp or similar
+LOSS_FILE = 'loss.npz'
+
+NUM_GPU = None
+
+# we need to have this globally somewhere, so let's put it here
+DIAGNOSTIC_BARRIER = None

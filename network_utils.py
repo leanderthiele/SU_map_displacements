@@ -283,7 +283,8 @@ class Block(nn.Module) :
     consistent with the in_layout, out_layout arguments.
     This module is not completely flexible, so during hyperparameter optimization the implementation
     may need to be changed.
-    We place the following restrictions on in_layout and out_layout :
+
+    Rules regarding the in_layout and out_layout arguments:
         > resolutions must be equal or related by factor 2
         > if out_layout.density_channels < 0, it is inferred from the channel ratio and in_layout.density_channels
         > if settings.USE_DENSITY = False, it is still allowed to have non-zero density channels
@@ -300,9 +301,9 @@ class Block(nn.Module) :
     """
 #{{{
     def __init__(self, in_layout, out_layout,
-                       N_layers=4, residual=False,
-                       activation=nn.LeakyReLU, batch_norm=False, dropout=False, bias=True,
-                       activation_kw={}, batch_norm_kw={}) :
+                       N_layers=4, residual=True,
+                       activation=True, batch_norm=False, dropout=False, bias=True,
+                       batch_norm_kw={}) :
         super().__init__()
 
         self.residual = residual

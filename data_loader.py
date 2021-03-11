@@ -1,6 +1,6 @@
 from glob import glob
 from enum import Enum, auto
-import random
+import numpy as np
 
 from torch.utils.data.dataset import Dataset as torch_Dataset
 from torch.utils.data import DataLoader as torch_DataLoader
@@ -28,7 +28,7 @@ class Dataset(torch_Dataset) :
     represents a torch-compatible collection of simulation data
     """
 #{{{
-    def __init__(self, mode) :
+    def __init__(self, mode, rank, world_size) :
         # populates self.run_pairs, which contains pairs of __Run instances,
         # each pair sorted in such a way that the lower delta_L comes first
 
@@ -49,8 +49,7 @@ class Dataset(torch_Dataset) :
                     self.run_pairs.append(tuple(sorted((run1, run2), key=lambda x : x.delta_L)))
 
         # we want to randomly shuffle the pairs, but so that each instance does the same shuffling
-        random.seed(settings.DATASET_SHUFFLING_SEED)
-        random.shuffle(self.run_pairs)
+        np.random.default_rng(settings.DATASET_SHUFFLING_SEED).shuffle(self.run_pairs)
         
         self.mode = mode
         if self.mode is DataModes.TESTING :
@@ -63,7 +62,12 @@ class Dataset(torch_Dataset) :
         else :
             raise RuntimeError('Invalid mode {}'.format(mode))
 
-    def __getitem__(self, idx) :
+        self.rank = rank
+        self.world_size = world_size
+
+    def getitem_all(self, idx) :
+        # operates on the entire dataset
+
         # figure out which run and which data augmentation this idx refers to
         item_idx = idx // 48
         augmentation_index = idx % 48
@@ -74,9 +78,19 @@ class Dataset(torch_Dataset) :
                    .augment_data(augmentation_index) \
                    .to_torch()
 
-    def __len__(self) :
+    def __getitem__(self, idx) :
+        # operates on the sub-dataset corresponding to this rank
+        return self.getitem_all(idx * self.world_size + self.rank)
+
+    def len_all(self) :
+        # operates on the entire dataset
+
         # note that we have 48 augmented vesions for each item!
         return 48 * len(self.run_pairs)
+
+    def __len__(self) :
+        # operates on the sub-dataset corresponding to this rank
+        return self.len_all() // self.world_size
 #}}}
 
 class Batch :
@@ -88,6 +102,12 @@ class Batch :
     each with the 0th dimension the batch dimension
     """
 #{{{
+    def to(self, device) :
+        self.inputs = self.inputs.to(device, non_blocking=True)
+        self.outputs = self.outputs.to(device, non_blocking=True)
+        self.styles = self.styles.to(device)
+        return self
+
     def __init__(self, data_items) :
         # we use the constructor as collate_fn, in which case data_items
         # will be a list of InputTargetPair's, or, if automatic batching is disabled,
@@ -115,12 +135,6 @@ class Batch :
             self.inputs[ii, ...] = data_item.item1.tensor
             self.outputs[ii, ...] = data_item.item2.tensor[offset:, ...]
             self.styles[ii, ...] = data_item.styles()
-
-    def to(self, device) :
-        self.inputs = self.inputs.to(device, non_blocking=True)
-        self.outputs = self.outputs.to(device, non_blocking=True)
-        self.styles = self.styles.to(device)
-        return self
 #}}}
 
 
@@ -128,7 +142,8 @@ class DataLoader(torch_DataLoader) :
     """
     A torch-compatible way to retrieve the data
     """
-
-    def __init__(self, mode) :
-        self.dataset = Dataset(mode)
+#{{{
+    def __init__(self, mode, rank, world_size) :
+        self.dataset = Dataset(mode, rank, world_size)
         super().__init__(self.dataset, collate_fn=Batch, **settings.DATALOADER_ARGS)
+#}}}
