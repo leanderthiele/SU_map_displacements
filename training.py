@@ -8,8 +8,6 @@ from torch.nn.parallel import DistributedDataParallel
 import torch.multiprocessing as torch_mp
 
 import settings
-import startup
-
 from data_loader import DataModes, Batch, DataLoader
 from network import Network
 from train_utils import Loss, Optimizer
@@ -144,5 +142,4 @@ def main() :
 #}}}
 
 if __name__ == '__main__' :
-    startup.main()
     main()
