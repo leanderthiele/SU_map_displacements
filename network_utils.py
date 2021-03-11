@@ -160,9 +160,12 @@ class StyleConv3d(nn.Module) :
       and s is the style tensor [Nbatches, N_styles]
     """
 #{{{
-    def __init__(self, in_chan, out_chan, N_styles,
+    def __init__(self, in_layout, out_layout, N_styles,
                  bias=True, resample=Resample.EQUAL):
         super().__init__()
+
+        in_chan = in_layout.channels
+        out_chan = out_layout.channels
 
         self.resample = resample
         if self.resample is Resample.EQUAL :
