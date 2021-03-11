@@ -7,7 +7,7 @@ import torch.multiprocessing as torch_mp
 
 import settings
 import startup
-from data_loader import DataModes, DataLoader
+from data_loader import Batch, DataModes, DataLoader
 from network import Network
 from train_utils import Loss, Optimizer
 
@@ -65,13 +65,12 @@ def training_process(rank, world_size, training_loss, validation_loss) :
         # loop once through the training data
         for t, data in enumerate(training_loader) :
             
-            # send the batch to this device
-            data.to(rank)
+            assert isinstance(data, Batch)
 
             # do the forward pass and compute loss
             optimizer.zero_grad()
             prediction = ddp_model(data.inputs, data.styles)
-            this_training_loss = loss_fn(prediction, data.outputs)
+            this_training_loss = loss_fn(prediction, data.targets)
 
             # update the loss storage
             training_loss[epoch*world_size*len(training_loader) + t*world_size + rank] \
@@ -88,12 +87,11 @@ def training_process(rank, world_size, training_loss, validation_loss) :
         this_validation_loss = 0.0
         with torch.no_grad() :
             for t, data in enumerate(validation_loader) :
-                
-                # send the batch to this device
-                data.to(rank)
+
+                assert isinstance(data, Batch)
 
                 prediction = ddp_model(data.inputs, data.styles)
-                this_validation_loss += loss_fn(prediction, data.outputs).item()
+                this_validation_loss += loss_fn(prediction, data.targets).item()
 
         validation_loss[epoch*world_size + rank] = this_validation_loss / len(validation_loader)
 

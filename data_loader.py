@@ -102,14 +102,14 @@ class Batch :
     each with the 0th dimension the batch dimension
     """
 #{{{
-    def to(self, device) :
-        self.inputs = self.inputs.to(device, non_blocking=True)
-        self.outputs = self.outputs.to(device, non_blocking=True)
-        self.styles = self.styles.to(device)
-        return self
+    def __init__(self, device) :
+        self.device = device
+        self.inputs = None
+        self.targets = None
+        self.styles = None
 
-    def __init__(self, data_items) :
-        # we use the constructor as collate_fn, in which case data_items
+    def __call__(self, data_items)
+        # we use this method as collate_fn, in which case data_items
         # will be a list of InputTargetPair's, or, if automatic batching is disabled,
         # a single InputTargetPair
         if isinstance(data_items, list) :
@@ -131,10 +131,18 @@ class Batch :
         # so we throw the density away
         offset = 1 if settings.USE_DENSITY else 0
 
+        # collect the batch
         for ii, data_item in enumerate(data_items) :
             self.inputs[ii, ...] = data_item.item1.tensor
-            self.outputs[ii, ...] = data_item.item2.tensor[offset:, ...]
+            self.targets[ii, ...] = data_item.item2.tensor[offset:, ...]
             self.styles[ii, ...] = data_item.styles()
+
+        # now push the batch to the desired device
+        self.inputs = self.inputs.to(self.device, non_blocking=True)
+        self.outputs = self.outputs.to(self.device, non_blocking=True)
+        self.styles = self.styles.to(self.device)
+
+        return self
 #}}}
 
 
@@ -145,5 +153,5 @@ class DataLoader(torch_DataLoader) :
 #{{{
     def __init__(self, mode, rank, world_size) :
         self.dataset = Dataset(mode, rank, world_size)
-        super().__init__(self.dataset, collate_fn=Batch, **settings.DATALOADER_ARGS)
+        super().__init__(self.dataset, collate_fn=Batch(rank), **settings.DATALOADER_ARGS)
 #}}}
