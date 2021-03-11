@@ -45,6 +45,8 @@ GLASS_SIDE = 64
 #              'h' (hubble parameter)
 DATA_PATH = '/projects/QUIJOTE/Leander/SU/ML_fixed_cosmo_DMonly'
 
+# NOTE since we are using distributed training, the actual number of CPUs
+#      used for the workers will be num_workers * num_GPUs
 DATALOADER_ARGS = dict(batch_size=1,
                        shuffle=True,
                        num_workers=4,
@@ -69,12 +71,15 @@ NORMALIZATION_FILE = 'normalization.npz'
 DENSITY_NORMALIZATION = None
 DISPLACEMENT_NORMALIZATION = None
 
-# at the moment the network doesn't take any arguments, but this may well
-# change in the future
-NETWORK_ARGS = dict()
-
 # set this to a high number (but not too high since we allocate some buffers proportionally)
 EPOCHS = 1000
+
+# note that these are somewhat dependent on the specific optimizer chosen in train_utils.py
+OPTIMIZER_ARGS = dict(lr=1e-3,
+                      betas=(0.9, 0.999), # TODO according to Paco, this may not be the best choice
+                      eps=1e-8, # default value from pytorch docs
+                      weight_decay=0.0, # L2 penalty
+                      amsgrad=False)
 
 # where we store the training and validation loss
 # TODO this should probably be set by the startup.py script, with some time stamp or similar

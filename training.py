@@ -47,7 +47,7 @@ def training_process(rank, world_size, training_loss, validation_loss) :
 #{{{
     torch.distributed.init_process_group('nccl', rank=rank, world_size=world_size)
 
-    model = Network(**settings.NETWORK_ARGS).to(rank)
+    model = Network().to(rank)
     ddp_model = DistributedDataParallel(model, device_ids=[rank])
     
     # TODO write Loss function and Optimizer
