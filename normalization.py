@@ -2,7 +2,8 @@ import math
 import numpy as np
 
 import settings
-from data_loader import DataModes, Dataset
+from data_modes import DataModes
+from data_loader import Dataset
 from data_item import DataItem
 
 DENSITY_FACTOR = 10.0

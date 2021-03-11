@@ -10,12 +10,12 @@ import torch.multiprocessing as torch_mp
 
 import settings
 from network import Network
-from data_loader import DataModes
+from data_modes import DataModes
 
 def load_normalizations() :
 #{{{
-    settings.DENSITY_NORMALIZATION = dict()
-    settings.DISPLACEMENT_NORMALIZATION = dict()
+    settings.DENSITY_NORMALIZATION = {}
+    settings.DISPLACEMENT_NORMALIZATION = {}
 
     with np.load(settings.NORMALIZATION_FILE) as f :
         for mode in DataModes :
@@ -35,3 +35,5 @@ def set_gpu_env() :
 def main() :
     load_normalizations()
     set_gpu_env()
+
+    settings.FOO = 'foo'

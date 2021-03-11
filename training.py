@@ -9,7 +9,9 @@ import torch.multiprocessing as torch_mp
 
 import settings
 import startup
-from data_loader import Batch, DataModes, DataLoader
+
+from data_loader import Batch, DataLoader
+from data_modes import DataModes
 from network import Network
 from train_utils import Loss, Optimizer
 
@@ -70,7 +72,7 @@ def training_process(rank, world_size, training_loss, validation_loss) :
     
     # TODO write Loss function and Optimizer
     loss_fn = Loss()
-    optimizer = Optimizer()
+    optimizer = Optimizer(ddp_model.parameters())
 
     training_loader = DataLoader(DataModes.TRAINING, rank, world_size)
     validation_loader = DataLoader(DataModes.VALIDATION, rank, world_size)

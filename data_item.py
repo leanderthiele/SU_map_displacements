@@ -52,7 +52,7 @@ class DataItem :
         #      everywhere here. Then it would simply be a collection of magic numbers.
         if settings.USE_DENSITY :
             self.density = settings.DENSITY_NORMALIZATION[mode](self.density)
-        self.displacement = settings.DISPLACEMENT_NORMALIZATION[mode]
+        self.displacement = settings.DISPLACEMENT_NORMALIZATION[mode](self.displacement)
 
         return self
 
@@ -61,6 +61,8 @@ class DataItem :
 
         # do the axis reversal
         # we need to be careful here because of the 0th (channel) dimension
+        print([ii+1 for ii in indices])
+        print(self.displacement.shape)
         self.displacement = np.flip(self.displacement, [ii+1 for ii in indices])
         if self.density is not None :
             self.density = np.flip(self.density, [ii+1 for ii in indices])
@@ -73,12 +75,14 @@ class DataItem :
         # permutation is a permutation of [0,1,2] 
 
         # when transposing, we need to preserve the channel dimension
+        print([0,]+[ii+1 for ii in permutation])
+        print(self.displacement.shape)
         self.displacement = np.transpose(self.displacement, axes=[0,]+[ii+1 for ii in permutation])
         if self.density is not None :
             self.density = np.transpose(self.density, axes=[0,]+[ii+1 for ii in permutation])
 
         # now we need to interchange the channels (i.e. displacement directions) accordingly,
-        self.displacement = self.displacement[indices, ...]
+        self.displacement = self.displacement[permutation, ...]
 
     def augment_data(self, r) :
         # performs the data augmentation.
@@ -127,11 +131,11 @@ class InputTargetPair :
         # TODO this is hardcoded at the moment, we may want to change that later
         return torch.tensor([self.item2.delta_L, ], dtype=torch.float32)
 
-    def normalize(self, displacement_norm, density_norm) :
+    def normalize(self, mode) :
         # performs normalization according to the supplied functions
         # Needs to be called prior to to_torch()
-        self.item1 = self.item1.normalize(displacement_norm, density_norm)
-        self.item2 = self.item2.normalize(displacement_norm, density_norm)
+        self.item1 = self.item1.normalize(mode)
+        self.item2 = self.item2.normalize(mode)
         return self
 
     def augment_data(self, rand_int=None) :
@@ -142,7 +146,7 @@ class InputTargetPair :
         # or a random integer
         if rand_int is None :
             r = np.random.default_rng(hash(self) % 2**32).integers(2**32)
-        elif isinstance(rand_int, callable) :
+        elif callable(rand_int) :
             r = rand_int()
         elif isinstance(rand_int, int) :
             r = rand_int

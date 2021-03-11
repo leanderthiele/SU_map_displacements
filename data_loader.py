@@ -1,7 +1,7 @@
 from glob import glob
-from enum import Enum, auto
 import numpy as np
 
+import torch
 from torch.utils.data.dataset import Dataset as torch_Dataset
 from torch.utils.data import DataLoader as torch_DataLoader
 
@@ -9,19 +9,7 @@ import settings
 import sim_utils
 from simulation_run import SimulationRun
 from data_item import DataItem, InputTargetPair
-
-class DataModes(Enum) :
-    TRAINING = auto()
-    VALIDATION = auto()
-    TESTING = auto()
-
-    def __str__(self) :
-        if self is DataModes.TRAINING :
-            return 'training'
-        elif self is DataModes.VALIDATION :
-            return 'validation'
-        elif self is DataModes.TESTING :
-            return 'testing'
+from data_modes import DataModes
 
 class Dataset(torch_Dataset) :
     """
@@ -121,10 +109,16 @@ class Batch :
 
         Nchannels = 4 if settings.USE_DENSITY else 3
         self.inputs = torch.empty(len(data_items), Nchannels, *[settings.NSIDE,]*3,
-                                  dtype=torch.float32, pin_memory=True)
-        self.targets = torch.empty(len(data_item), 3, *[settings.NSIDE,]*3,
-                                   dtype=torch.float32, pin_memory=True)
+                                  device=torch.device('cpu'),
+                                  pin_memory=False,
+                                  dtype=torch.float32)
+        self.targets = torch.empty(len(data_items), 3, *[settings.NSIDE,]*3,
+                                   device=torch.device('cpu'),
+                                   pin_memory=False,
+                                   dtype=torch.float32)
         self.styles = torch.empty(len(data_items), settings.NSTYLES,
+                                  device=torch.device('cpu'),
+                                  pin_memory=False,
                                   dtype=torch.float32)
 
         # for the target, we only require the displacement field,
