@@ -1,3 +1,5 @@
+import os
+
 import numpy as np
 
 import torch
@@ -35,6 +37,22 @@ def save_model(model) :
     pass
 #}}}
 
+def setup_process(rank, world_size) :
+    # to be called at the beginning of a child process
+#{{{
+    # these are taken from the example at https://pytorch.org/tutorials/intermediate/ddp_tutorial.html
+    os.environ['MASTER_ADDR'] = 'localhost'
+    os.environ['MASTER_PORT'] = '12355'
+
+    torch.distributed.init_process_group('nccl', rank=rank, world_size=world_size)
+#}}}
+
+def cleanup_process() :
+    # to be called at the end of a child process
+#{{{
+    torch.distributed.destroy_process_group()
+#}}}
+
 def training_process(rank, world_size, training_loss, validation_loss) :
     """
     A single training process, working on its own data.
@@ -45,7 +63,7 @@ def training_process(rank, world_size, training_loss, validation_loss) :
     by periodically giving some loss output.
     """
 #{{{
-    torch.distributed.init_process_group('nccl', rank=rank, world_size=world_size)
+    setup_process(rank, world_size)
 
     model = Network().to(rank)
     ddp_model = DistributedDataParallel(model, device_ids=[rank])
@@ -102,6 +120,9 @@ def training_process(rank, world_size, training_loss, validation_loss) :
             do_diagnostic_output(training_loss, validation_loss, epoch+1, epoch_len, world_size)
         if (world_size == 1 and idx == 0) or idx == 1 :
             save_model(ddp_model)
+
+    # we're done, let's release resources
+    cleanup_process()
 #}}}
 
 def main() :
