@@ -124,7 +124,6 @@ class Conv3d(nn.Module) :
             self.conv_ = (nn.ConvTranspose3d
                           if self.resample is Resample.UP
                           else nn.Conv3d)(in_chan, out_chan, 3, stride=stride,
-                                          padding=self.padding, padding_mode=self.padding_mode,
                                           groups=get_groups(group_mode, in_chan, out_chan),
                                           bias=True if bias is None else bias)
             self.conv = lambda x, w, b, **kwargs : \
@@ -136,12 +135,11 @@ class Conv3d(nn.Module) :
         assert (self.external_weight and w is not None) \
                or (not self.external_weight and w is None)
 
-        # the functional.conv3d doesn't seem to support circular padding,
-        # so we'll do this ourselves
-        if self.external_weight and self.padding :
+        # circular padding is not universally supported in the pytorch convolutional modules, so we'll do it manually
+        if self.padding != 0 :
             x = F.pad(x, [self.padding,]*6, mode=self.padding_mode)
 
-        # apply the convolution. Note that if not self.external_weight, the w argument is ignored
+        # apply the convolution. Note that if not self.external_weight, the w, b arguments are ignored
         x = self.conv(x, w, b, **kwargs)
 
         # if we did upsampling, we'll need to remove one row on each side in each dimension
