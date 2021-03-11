@@ -10,8 +10,7 @@ import torch.multiprocessing as torch_mp
 import settings
 import startup
 
-from data_loader import Batch, DataLoader
-from data_modes import DataModes
+from data_loader import DataModes, Batch, DataLoader
 from network import Network
 from train_utils import Loss, Optimizer
 
@@ -55,7 +54,7 @@ def cleanup_process() :
     torch.distributed.destroy_process_group()
 #}}}
 
-def training_process(rank, world_size, training_loss, validation_loss) :
+def training_process(rank, world_size, diagnostic_barrier, training_loss, validation_loss) :
     """
     A single training process, working on its own data.
 
@@ -117,7 +116,7 @@ def training_process(rank, world_size, training_loss, validation_loss) :
 
         # now give diagnostic output -- we need to wait for all threads to reach this point so
         # we have the validation loss complete
-        idx = settings.DIAGNOSTIC_BARRIER.wait()
+        idx = diagnostic_barrier.wait()
         if idx == 0 :
             do_diagnostic_output(training_loss, validation_loss, epoch+1, epoch_len, world_size)
         if (world_size == 1 and idx == 0) or idx == 1 :
@@ -132,13 +131,15 @@ def main() :
     launches a couple of training_process's
     """
 #{{{
-    world_size = settings.NUM_GPU
+    world_size = torch.cuda.device_count()
 
+    # create some objects that we need to share between processes
+    diagnostic_barrier = torch_mp.Barrier(world_size)
     training_loss = torch_mp.Array('d', settings.EPOCHS * 100 * 48)
     validation_loss = torch_mp.Array('d', settings.EPOCHS * world_size)
 
     torch_mp.spawn(training_process,
-                   args=(world_size, training_loss, validation_loss, ),
+                   args=(world_size, diagnostic_barrier, training_loss, validation_loss, ),
                    nprocs=world_size)
 #}}}
 

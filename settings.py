@@ -2,9 +2,8 @@
 """
 This file contains some global switches etc. that we'd like to
 use in different parts of the code.
+NOTE : for simplicity, we should not write to the variables in this file!
 """
-
-from data_modes import DataModes
 
 # whether we want to map only from the zero DC mode to others
 # or, if False, from any DC mode to any other
@@ -66,13 +65,6 @@ NSTYLES = 1
 # where we store the parameters required for the normalization functions 
 NORMALIZATION_FILE = 'normalization.npz'
 
-# these are dicts whose keys are members of the DataModes enum,
-# and whose items are callables
-# They need to be constructed on start-up using the data stored in
-# NORMALIZATION_FILE
-DENSITY_NORMALIZATION = None
-DISPLACEMENT_NORMALIZATION = None
-
 # set this to a high number (but not too high since we allocate some buffers proportionally)
 EPOCHS = 1000
 
@@ -84,10 +76,4 @@ OPTIMIZER_ARGS = dict(lr=1e-3,
                       amsgrad=False)
 
 # where we store the training and validation loss
-# TODO this should probably be set by the startup.py script, with some time stamp or similar
 LOSS_FILE = 'loss.npz'
-
-NUM_GPU = None
-
-# we need to have this globally somewhere, so let's put it here
-DIAGNOSTIC_BARRIER = None

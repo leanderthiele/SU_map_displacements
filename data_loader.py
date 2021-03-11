@@ -1,4 +1,5 @@
 from glob import glob
+from enum import Enum, auto
 import numpy as np
 
 import torch
@@ -9,7 +10,21 @@ import settings
 import sim_utils
 from simulation_run import SimulationRun
 from data_item import DataItem, InputTargetPair
-from data_modes import DataModes
+
+class DataModes(Enum) :
+    TRAINING = auto()
+    VALIDATION = auto()
+    TESTING = auto()
+
+    def __str__(self) :
+        if self is DataModes.TRAINING :
+            return 'training'
+        elif self is DataModes.VALIDATION :
+            return 'validation'
+        elif self is DataModes.TESTING :
+            return 'testing'
+
+
 
 class Dataset(torch_Dataset) :
     """
