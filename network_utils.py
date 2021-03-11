@@ -53,6 +53,40 @@ def get_groups(group_mode, in_chan, out_chan) :
         raise RuntimeError('invalid group mode {}'.format(group_mode))
 #}}}
 
+class Layout :
+    """
+    a simple wrapper around some properties we associate with tensors
+    """
+#{{{
+    def __init__(self, channels, resolution, density_channels) :
+        self.channels = channels
+        self.resolution = resolution
+        self.density_channels = density_channels
+#}}}
+
+class Activation(nn.Module) :
+    """
+    our custom activation function that works on the channels we associate with density
+    and on those we associate with displacement separately
+    """
+#{{{
+    def __init__(self, layout) :
+        super().__init__()
+        self.density_channels = layout.density_channels
+        if self.density_channels > 0 :
+            # we are free in this choice
+            self.density_activation = nn.LeakyReLU()
+
+        # here we need to keep the sign symmetry in mind
+        self.displacement_activation = nn.Hardshrink()
+
+    def forward(self, x) :
+        if self.density_channels > 0 :
+            x[:, :self.density_channels, ...] = self.density_activation(x[:, :self.density_channels, ...])
+        x[:, self.density_channels:, ...] = self.displacement_activation(x[:, self.density_channels:, ...])
+        return x
+#}}}
+
 class Conv3d(nn.Module) :
     """
     implements 3d convolution with periodic boundary conditions,
@@ -203,15 +237,13 @@ class Layer(nn.Module) :
     a single convolutional layer, including activation, batch norm, dropout
     """
 #{{{
-    def __init__(self, in_chan, out_chan,
-                       resample=Resample.EQUAL, activation=nn.LeakyReLU,
-                       batch_norm=False, dropout=False, styles=False, bias=True,
+    def __init__(self, in_layout, out_layout,
+                       activation=True, batch_norm=False, dropout=False, styles=False, bias=True,
                        group_mode=GroupModes.ALL, # do not change if styles=True
-                       activation_kw={}, batch_norm_kw={}) :
+                       batch_norm_kw={}) :
         super().__init__()
 
-        self.activation = (nn.Identity if activation is None else activation) \
-                                (**activation_kw)
+        self.activation = (nn.Identity if not activation else Activation)(out_layout)
         self.batch_norm = (nn.Identity if not batch_norm else nn.BatchNorm3d) \
                                 (**batch_norm_kw)
         self.dropout    = (nn.Identity if not dropout else nn.Dropout3d) \
@@ -219,7 +251,14 @@ class Layer(nn.Module) :
                                  else dropout if isinstance(dropout, float)
                                  else **dropout if isinstance(dropout, dict))
 
-        common_conv_kwargs = dict(in_chan=in_chan, out_chan=out_chan, resample=resample, bias=bias)
+        resample=Resample.EQUAL if in_layout.resolution == out_layout.resolution \
+                 else Resample.UP if 2*in_layout.resolution == out_layout.resolution \
+                 else Resample.DOWN if in_layout.resolution == 2 * out_layout.resolution \
+                 else None
+        assert resample is not None, "Incompatible resolutions in=%d out=%d"%(in_layout.resolution, out_layout.resolution)
+        common_conv_kwargs = dict(in_chan=in_layout.channels, out_chan=out_layout.channels,
+                                  resample=resample,
+                                  bias=bias)
 
         if styles :
             assert isinstance(styles, int)
@@ -241,20 +280,27 @@ class Block(nn.Module) :
     """
     a linear stack of layers, possibly with a residual connection
     We guarantee that the aggregate action of the Block leads to a change in tensor shape
-    consistent with the resample, in_chan, out_chan arguments.
+    consistent with the in_layout, out_layout arguments.
     This module is not completely flexible, so during hyperparameter optimization the implementation
-    may need to be changed
+    may need to be changed.
+    We place the following restrictions on in_layout and out_layout :
+        > resolutions must be equal or related by factor 2
+        > if out_layout.density_channels < 0, it is inferred from the channel ratio and in_layout.density_channels
+        > if settings.USE_DENSITY = False, it is still allowed to have non-zero density channels
+          (this actually makes sense if we want to reduce the displacement field to some scalars)
+
     In the current implementation, data flow looks like this :
 
-                                             residual
+                                             residual [optional]
                                    ------------------------
                    resampling     |                        |
                      SINGLE       |           ALL          | [ combined using +,
                     no style      |          styles        v   divide by sqrt(2) ]
-    input[in_chan] ---------> [out_chan] ---> ... ---> [out_chan] ---> return
+    input[in_layout] ------> [out_layout] --> ... --> output[out_layout]
     """
 #{{{
-    def __init__(self, resample, in_chan, out_chan, N_layers=4, residual=False,
+    def __init__(self, in_layout, out_layout,
+                       N_layers=4, residual=False,
                        activation=nn.LeakyReLU, batch_norm=False, dropout=False, bias=True,
                        activation_kw={}, batch_norm_kw={}) :
         super().__init__()
@@ -263,14 +309,15 @@ class Block(nn.Module) :
 
         assert(N_layers > 1)
         common_layer_kwargs = dict(activation=activation, batch_norm=batch_norm,
-                                   dropout=dropout, bias=bias,
-                                   activation_kw=activation_kw, batch_norm_kw=batch_norm_kw)
+                                   dropout=dropout, bias=bias, batch_norm_kw=batch_norm_kw)
+
+        if out_layout.density_channels < 0 :
+            out_layout.density_channels = in_layout.density_channels * out_layout.channels // in_layout.channels
         
         layers = []
         for ii in range(N_layers) :
-            layers.append(Layer(in_chan=in_chan if ii==0 else out_chan,
-                                out_chan=out_chan,
-                                resample=resample if ii==0 else Resample.EQUAL,
+            layers.append(Layer(in_layout=in_layout if ii==0 else out_layout,
+                                out_layout=out_layout,
                                 styles=False if ii==0 else settings.NSTYLES,
                                 group_mode=GroupModes.SINGLE if ii==0 else GroupModes.ALL,
                                 **common_layer_kwargs))

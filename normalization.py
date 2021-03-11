@@ -39,8 +39,8 @@ def normalization(mode) :
 
     for run_pair in dataset.run_pairs :
         item = DataItem(run_pair[0]) # we only want to normalize the input
-        var_displacement += np.var(item.tensor[1:, ...])
-        var_density += np.var(item.tensor[0, ...])
+        var_displacement += np.var(item.displacement)
+        var_density += np.var(item.density)
 
     var_displacement /= len(dataset.run_pairs)
     var_density /= len(dataset.run_pairs)
@@ -55,7 +55,7 @@ def normalization(mode) :
 
     for run_pair in dataset.run_pairs :
         item = DataItem(run_pair[0])
-        logdensity = np.log1p( item.tensor[0, ...] / DENSITY_FACTOR / math.sqrt(var_density) )
+        logdensity = np.log1p( item.density / DENSITY_FACTOR / math.sqrt(var_density) )
         var_logdensity += np.sum(logdensity**2) / logdensity.size
         avg_logdensity += np.mean(logdensity)
 
@@ -73,4 +73,4 @@ if __name__ == '__main__' :
     norms = {}
     for mode in DataModes :
         norms[str(mode)] = np.array(normalization(mode))
-    np.savez('normalizations.npz', **norms, README=normalization.__doc__)
+    np.savez(settings.NORMALIZATION_FILE, **norms, README=normalization.__doc__)

@@ -20,6 +20,8 @@ class DataItem :
                 self.density = f['density']
                 if not settings.H_UNITS :
                     self.density *= f['h']**2
+            # it's useful to have the channel dimension explicit
+            self.density = np.expand_dims(self.density, 0)
         else :
             self.density = None
 
@@ -40,25 +42,17 @@ class DataItem :
 
         self.displacement = sim_utils.get_displacement(x1, x2, BoxSize)
 
-        # we need to have channel dimension at the beginning
+        # we like to have channel dimension at the beginning
         # (channel is the 3d dimensionality)
         self.displacement = np.moveaxis(self.displacement, -1, 0)
 
-        if not settings.USE_DENSITY :
-            self.tensor = self.displacement
-        else :
-            self.tensor = np.concatenate((self.density, self.displacement), axis=0)
-
-    def normalize(self, displacement_norm, density_norm) :
+    def normalize(self, mode) :
         # cannot be called after to_torch()
+        # TODO in principle, we could think about using the same normalization function
+        #      everywhere here. Then it would simply be a collection of magic numbers.
         if settings.USE_DENSITY :
-            assert density_norm is not None
-            self.tensor[0, ...] = density_norm(self.tensor[0, ...])
-        else :
-            assert density_norm is None
-
-        offset = 1 if settings.USE_DENSITY else 0
-        self.tensor[offset:, ...] = displacement_norm(self.tensor[offset:, ...])
+            self.density = settings.DENSITY_NORMALIZATION[mode](self.density)
+        self.displacement = settings.DISPLACEMENT_NORMALIZATION[mode]
 
         return self
 
@@ -66,26 +60,25 @@ class DataItem :
         # indices labels the axes that should be reflected
 
         # do the axis reversal
-        self.tensor = np.flip(self.tensor, indices)
+        # we need to be careful here because of the 0th (channel) dimension
+        self.displacement = np.flip(self.displacement, [ii+1 for ii in indices])
+        if self.density is not None :
+            self.density = np.flip(self.density, [ii+1 for ii in indices])
 
         # reverse vectorial quantities (displacement components)
-        offset = 1 if settings.USE_DENSITY else 0
         for ii in indices :
-            self.tensor[offset+ii, ...] *= -1.0
+            self.displacement[ii, ...] *= -1.0
 
     def __transpose(self, permutation) :
         # permutation is a permutation of [0,1,2] 
 
         # when transposing, we need to preserve the channel dimension
-        self.tensor = np.transpose(self.tensor, axes=[0,]+[ii+1 for ii in permutation])
+        self.displacement = np.transpose(self.displacement, axes=[0,]+[ii+1 for ii in permutation])
+        if self.density is not None :
+            self.density = np.transpose(self.density, axes=[0,]+[ii+1 for ii in permutation])
 
         # now we need to interchange the channels (i.e. displacement directions) accordingly,
-        # keeping the density channel in the zeroth position if it is present
-        if settings.USE_DENSITY :
-            indices = [0,]+[ii+1 for ii in permutation]
-        else :
-            indices = permutation
-        self.tensor = self.tensor[indices, ...]
+        self.displacement = self.displacement[indices, ...]
 
     def augment_data(self, r) :
         # performs the data augmentation.
@@ -107,18 +100,16 @@ class DataItem :
         return self
 
     def to_torch(self) :
-        # note that this function cannot be called before augment_data,
-        # but not after pin_memory!
+        # note that this function cannot be called before augment_data
         # TODO do we need to unsqueeze the batch dimension here???
+        #      -- I don't think so! pytorch will tell us
+        if self.density is None :
+            self.tensor = self.displacement
+        else :
+            self.tensor = np.concatenate((self.density, self.displacement), axis=0)
+
         self.tensor = torch.as_tensor(self.tensor,
-                                      dtype=torch.float32,
-                                      device=settings.DEVICE)
-        return self
-        
-    def pin_memory(self) :
-        # according to PyTorch documentation,
-        # we should define this method on custom types returned by the data loader
-        self.tensor = self.tensor.pin_memory()
+                                      dtype=torch.float32)
         return self
 #}}}
 
@@ -130,6 +121,11 @@ class InputTargetPair :
     def __init__(self, item1, item2) :
         self.item1 = item1
         self.item2 = item2
+
+    def styles(self) :
+        # returns the styles describing this InputTargetPair as a torch tensor
+        # TODO this is hardcoded at the moment, we may want to change that later
+        return torch.tensor([self.item2.delta_L, ], dtype=torch.float32)
 
     def normalize(self, displacement_norm, density_norm) :
         # performs normalization according to the supplied functions
@@ -160,15 +156,7 @@ class InputTargetPair :
 
     def to_torch(self) :
         # note that this function cannot be called before augment_data,
-        # but not after pin_memory!
         self.item1 = self.item1.to_torch()
         self.item2 = self.item2.to_torch()
-        return self
-
-    def pin_memory(self) :
-        # according to PyTorch documentation,
-        # we should define this method on custom types returned by the data loader
-        self.item1 = self.item1.pin_memory()
-        self.item2 = self.item2.pin_memory()
         return self
 #}}}

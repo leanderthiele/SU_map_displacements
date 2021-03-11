@@ -60,22 +60,17 @@ class Dataset(torch_Dataset) :
                                             : settings.NSAMPLES_TESTING+settings.NSAMPLES_VALIDATION]
         elif self.mode is DataModes.TRAINING :
             self.run_pairs = self.run_pairs[settings.NSAMPLES_TESTING+settings.NSAMPLES_VALIDATION :]
+        else :
+            raise RuntimeError('Invalid mode {}'.format(mode))
 
     def __getitem__(self, idx) :
         # figure out which run and which data augmentation this idx refers to
         item_idx = idx // 48
         augmentation_index = idx % 48
 
-        # get the normalization functions
-        if settings.USE_DENSITY :
-            density_norm = settings.DENSITY_NORMALIZATION[self.mode]
-        else :
-            density_norm = None
-        displacement_norm = settings.DISPLACEMENT_NORMALIZATION[self.mode]
-
         return InputTargetPair(DataItem(self.run_pairs[item_idx][0]),
                                DataItem(self.run_pairs[item_idx][1])) \
-                   .normalize(displacement_norm, density_norm) \
+                   .normalize(self.mode) \
                    .augment_data(augmentation_index) \
                    .to_torch()
 
@@ -84,6 +79,51 @@ class Dataset(torch_Dataset) :
         return 48 * len(self.run_pairs)
 #}}}
 
+class Batch :
+    """
+    represents a Batch of data items
+    (we use the constructor to extract the required fields)
+    The constructed Batch has the fields
+        inputs, output, styles,
+    each with the 0th dimension the batch dimension
+    """
+#{{{
+    def __init__(self, data_items) :
+        # we use the constructor as collate_fn, in which case data_items
+        # will be a list of InputTargetPair's, or, if automatic batching is disabled,
+        # a single InputTargetPair
+        if isinstance(data_items, list) :
+            assert isinstance(data_items[0], InputTargetPair)
+        else :
+            assert isinstance(data_items, InputTargetPair)
+            # convert into list so the rest of the code is invariant
+            data_items = [data_items, ]
+
+        Nchannels = 4 if settings.USE_DENSITY else 3
+        self.inputs = torch.empty(len(data_items), Nchannels, *[settings.NSIDE,]*3,
+                                  dtype=torch.float32, pin_memory=True)
+        self.targets = torch.empty(len(data_item), 3, *[settings.NSIDE,]*3,
+                                   dtype=torch.float32, pin_memory=True)
+        self.styles = torch.empty(len(data_items), settings.NSTYLES,
+                                  dtype=torch.float32)
+
+        # for the target, we only require the displacement field,
+        # so we throw the density away
+        offset = 1 if settings.USE_DENSITY else 0
+
+        for ii, data_item in enumerate(data_items) :
+            self.inputs[ii, ...] = data_item.item1.tensor
+            self.outputs[ii, ...] = data_item.item2.tensor[offset:, ...]
+            self.styles[ii, ...] = data_item.styles()
+
+    def to(self, device) :
+        self.inputs = self.inputs.to(device, non_blocking=True)
+        self.outputs = self.outputs.to(device, non_blocking=True)
+        self.styles = self.styles.to(device)
+        return self
+#}}}
+
+
 class DataLoader(torch_DataLoader) :
     """
     A torch-compatible way to retrieve the data
@@ -91,4 +131,4 @@ class DataLoader(torch_DataLoader) :
 
     def __init__(self, mode) :
         self.dataset = Dataset(mode)
-        super().__init__(self.dataset, **settings.DATALOADER_ARGS)
+        super().__init__(self.dataset, collate_fn=Batch, **settings.DATALOADER_ARGS)

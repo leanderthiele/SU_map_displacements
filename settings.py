@@ -54,11 +54,20 @@ DATALOADER_ARGS = dict(batch_size=1,
                        pin_memory=True,
                        prefetch_factor=1)
 
+# These must be consistent between runs!
 DATASET_SHUFFLING_SEED = 137
 NSAMPLES_TESTING = 5
 NSAMPLES_VALIDATION = 10
 
+# number of styles, 1 for delta_L only
 NSTYLES = 1
 
+# where we store the parameters required for the normalization functions 
+NORMALIZATION_FILE = 'normalization.npz'
+
+# these are dicts whose keys are members of the DataModes enum,
+# and whose items are callables
+# They need to be constructed on start-up using the data stored in
+# NORMALIZATION_FILE
 DENSITY_NORMALIZATION = {}
 DISPLACEMENT_NORMALIZATION = {}
