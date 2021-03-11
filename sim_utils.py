@@ -13,7 +13,7 @@ def load_particles(fname) :
     """
 #{{{ 
     with h5py.File(fname, 'r') as f :
-        x = f['PartType1/Coordinates'][np.argsort(f['PartType1/ParticleIDs'][...]), :]
+        x = f['PartType1/Coordinates'][...][np.argsort(f['PartType1/ParticleIDs'][...]), :]
 
     assert x.shape[0] == settings.NSIDE**3
     assert x.shape[1] == 3
@@ -22,14 +22,14 @@ def load_particles(fname) :
     assert factor * settings.GLASS_SIDE == settings.NSIDE
 
     x = x.reshape((*[factor,]*3, *[settings.GLASS_SIDE,]*3, 3))
-    out = np.empty((*[settings.NSIDE,]*3))
+    out = np.empty((*[settings.NSIDE,]*3, 3))
 
     for ii in range(factor) :
         for jj in range(factor) :
             for kk in range(factor) :
                 out[ii*settings.GLASS_SIDE : (ii+1)*settings.GLASS_SIDE,
                     jj*settings.GLASS_SIDE : (jj+1)*settings.GLASS_SIDE,
-                    kk*settings.GLASS_SIDE : (kk+1)*settings.GLASS_SIDE, :] = x[ii, jj, kk, ...]
+                    kk*settings.GLASS_SIDE : (kk+1)*settings.GLASS_SIDE, ...] = x[ii, jj, kk, ...]
 
     del x
     return out
@@ -40,6 +40,7 @@ def get_displacement(x1, x2, box_size) :
     Computes the displacement field x2-x1, taking into account
     periodic boundary conditions
     """
+    # TODO check if this function is correct!
 #{{{
     x2 -= x1
 

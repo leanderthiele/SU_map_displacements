@@ -40,12 +40,12 @@ class Dataset(torch_Dataset) :
             run_fnames = glob(seed_dir+'/*[m,p]')
 
             for i1, run_fname1 in enumerate(run_fnames) :
-                run1 = Dataset.SimulationRun(run_fname1)
+                run1 = SimulationRun(run_fname1)
                 if settings.ONLY_FROM_ZERO and not run1.is_zero() :
                     continue
 
                 for i2, run_fname2 in enumerate(run_fnames, start=i1+1) :
-                    run2 = Dataset.SimulationRun(run_fname2)
+                    run2 = SimulationRun(run_fname2)
                     self.run_pairs.append(tuple(sorted((run1, run2), key=lambda x : x.delta_L)))
 
         # we want to randomly shuffle the pairs, but so that each instance does the same shuffling

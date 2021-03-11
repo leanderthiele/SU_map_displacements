@@ -40,7 +40,7 @@ class DataItem :
             x2 /= self.HubbleParam
             self.BoxSize /= self.HubbleParam
 
-        self.displacement = sim_utils.get_displacement(x1, x2, BoxSize)
+        self.displacement = sim_utils.get_displacement(x1, x2, self.BoxSize)
 
         # we like to have channel dimension at the beginning
         # (channel is the 3d dimensionality)
@@ -88,7 +88,7 @@ class DataItem :
         r2 = r % 6  # this one labels the 6 transpositions
 
         # find the reflection
-        reflect_indices = [[,], [0,], [1,], [2,], [0,1,], [0,2,], [1,2,], [0,1,2,]][r1]
+        reflect_indices = [[], [0,], [1,], [2,], [0,1,], [0,2,], [1,2,], [0,1,2,]][r1]
         if r1 != 0 :
             self.__reflect(reflect_indices)
 
@@ -142,9 +142,9 @@ class InputTargetPair :
         # or a random integer
         if rand_int is None :
             r = np.random.default_rng(hash(self) % 2**32).integers(2**32)
-        else if isinstance(rand_int, callable) :
+        elif isinstance(rand_int, callable) :
             r = rand_int()
-        else if isinstance(rand_int, int) :
+        elif isinstance(rand_int, int) :
             r = rand_int
         else :
             raise RuntimeError('Invalid argument type of rand_int = {}'.format(rand_int))

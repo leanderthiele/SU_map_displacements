@@ -28,7 +28,7 @@ def normalization(mode) :
 #{{{
     assert settings.USE_DENSITY # for convienience
 
-    dataset = Dataset(mode)
+    dataset = Dataset(mode, 0, 1) # we do this in a single process, so we set rank and world_size to 0, 1
 
     # make a first pass through the data, computing the variances
     # note that we're using the fact that mean(displacement) ~ 0
@@ -38,6 +38,7 @@ def normalization(mode) :
     var_density = 0.0
 
     for run_pair in dataset.run_pairs :
+        print('In normalization.py, first loop, {}'.format(run_pair))
         item = DataItem(run_pair[0]) # we only want to normalize the input
         var_displacement += np.var(item.displacement)
         var_density += np.var(item.density)
@@ -54,6 +55,7 @@ def normalization(mode) :
     avg_logdensity = 0.0
 
     for run_pair in dataset.run_pairs :
+        print('In normalization.py, second loop, {}'.format(run_pair))
         item = DataItem(run_pair[0])
         logdensity = np.log1p( item.density / DENSITY_FACTOR / math.sqrt(var_density) )
         var_logdensity += np.sum(logdensity**2) / logdensity.size

@@ -1,10 +1,12 @@
 import os.path
 
+import settings
+
 class SimulationRun :
     """
     represents a single simulation run and implements my canonical directory structure
     """
-
+#{{{
     def __init__(self, dirname) :
         self.dirname = dirname
         seed_root, run_root = os.path.split(os.path.normpath(self.dirname).rstrip('/'))
@@ -36,3 +38,4 @@ class SimulationRun :
     def is_zero(self) :
         # returns whether this is a zero delta_L run
         return abs(self.delta_L) < 1e-10
+#}}}
