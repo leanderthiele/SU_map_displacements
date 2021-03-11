@@ -37,7 +37,7 @@ def crop(x, num=1) :
             .contiguous()
 #}}}
 
-def get_groups(group_mode, in_chan, out_chan) :
+def get_groups(group_mode, in_layout, out_layout) :
     """
     converts GroupModes instance (or None) into an integer
     that's suitable as an argument for the torch.conv* things
@@ -46,9 +46,9 @@ def get_groups(group_mode, in_chan, out_chan) :
     if group_mode is None or group_mode is GroupModes.ALL :
         return 1
     elif group_mode is GroupModes.SINGLE :
-        return min(in_chan, out_chan)
+        return min(in_layout.channels, out_layout.channels)
     elif group_mode is GroupModes.BUNDLE :
-        return 4 if settings.USE_DENSITY else 3
+        return 4 if out_layout.density_channels != 0 else 3
     else :
         raise RuntimeError('invalid group mode {}'.format(group_mode))
 #}}}
@@ -98,14 +98,14 @@ class Conv3d(nn.Module) :
     def __init__(self, resample=Resample.EQUAL, external_weight=False,
                  # following arguments only to be used if external_weight=False,
                  # otherwise an exeception will be raised
-                 in_chan=None, out_chan=None, bias=None, group_mode=None) :
+                 in_layout=None, out_layout=None, bias=None, group_mode=None) :
         super().__init__()
         self.resample = resample
         self.external_weight = external_weight
         
-        assert (self.external_weight and in_chan is None and out_chan is None
+        assert (self.external_weight and in_layout is None and out_layout is None
                                      and bias is None and group_mode is None)     \
-               or (not self.external_weight and in_chan is not None and out_chan is not None)
+               or (not self.external_weight and in_layout is not None and out_layout is not None)
 
         stride = 1 if self.resample is Resample.EQUAL else 2
 
@@ -123,8 +123,8 @@ class Conv3d(nn.Module) :
         else :
             self.conv_ = (nn.ConvTranspose3d
                           if self.resample is Resample.UP
-                          else nn.Conv3d)(in_chan, out_chan, 3, stride=stride,
-                                          groups=get_groups(group_mode, in_chan, out_chan),
+                          else nn.Conv3d)(in_layout.channels, out_layout.channels, 3, stride=stride,
+                                          groups=get_groups(group_mode, in_layout, out_layout),
                                           bias=True if bias is None else bias)
             self.conv = lambda x, w, b, **kwargs : \
                              self.conv_(x)
@@ -254,9 +254,8 @@ class Layer(nn.Module) :
                  else Resample.DOWN if in_layout.resolution == 2 * out_layout.resolution \
                  else None
         assert resample is not None, "Incompatible resolutions in=%d out=%d"%(in_layout.resolution, out_layout.resolution)
-        common_conv_kwargs = dict(in_chan=in_layout.channels, out_chan=out_layout.channels,
-                                  resample=resample,
-                                  bias=bias)
+        common_conv_kwargs = dict(in_layout=in_layout, out_layout=out_layout,
+                                  resample=resample, bias=bias)
 
         if styles :
             assert isinstance(styles, int)
