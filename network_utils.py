@@ -249,7 +249,7 @@ class Layer(nn.Module) :
         self.dropout    = (nn.Identity if not dropout else nn.Dropout3d) \
                                 (0.5 if isinstance(dropout, bool)
                                  else dropout if isinstance(dropout, float)
-                                 else **dropout if isinstance(dropout, dict))
+                                 else 0.5)
 
         resample=Resample.EQUAL if in_layout.resolution == out_layout.resolution \
                  else Resample.UP if 2*in_layout.resolution == out_layout.resolution \

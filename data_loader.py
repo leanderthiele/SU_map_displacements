@@ -108,7 +108,7 @@ class Batch :
         self.targets = None
         self.styles = None
 
-    def __call__(self, data_items)
+    def __call__(self, data_items) :
         # we use this method as collate_fn, in which case data_items
         # will be a list of InputTargetPair's, or, if automatic batching is disabled,
         # a single InputTargetPair
