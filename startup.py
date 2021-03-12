@@ -64,13 +64,13 @@ def set_filenames() :
     """
 #{{{
     settings.LOSS_FILE = settings.LOSS_FILE.set(os.path.join(settings.DATA_PATH, 'loss_%s.npz'%settings.ID))
-    settings.MODEL_FILE = settings.MODEL_FILE.set(os.path.join(settings.DATA_PATH, 'model_%s.pt'%settings.ID)
+    settings.MODEL_FILE = settings.MODEL_FILE.set(os.path.join(settings.DATA_PATH, 'model_%s.pt'%settings.ID))
 #}}}
 
 def check_all_set() :
     """
     checks that none of the variables in the settings module is still ToSet.
-    (or, if it is a composite type like a list, dict, class, etc.,
+    (or, if it is a composite type like a list, tuple, dict, class, etc.,
      whether any of its members are still ToSet)
     This is a good way to check that startup.main() has done its job.
     """
@@ -80,20 +80,35 @@ def check_all_set() :
             # this is an internal variable that we don't care about
             continue
         this_setting = settings.__dict__[name]
+
         if isinstance(this_setting, ToSet) :
             raise RuntimeError('settings.%s not set by startup.main'%name)
-        elif isinstance(this_setting, dict) :
+
+        try :
+            # dict-like
             for k, v in this_setting.items() :
                 if isinstance(v, ToSet) :
                     raise RuntimeError('settings.%s[%s] not set by startup.main'%(name, k))
-        elif isinstance(this_setting, list) :
+        except AttributeError :
+            pass
+
+        try :
+            # iterable
             for ii, v in enumerate(this_setting) :
                 if isinstance(v, ToSet) :
                     raise RuntimeError('settings.%s[%d] not set by startup.main'%(name, ii))
-        elif hasattr(this_setting, '__dict__') :
-            for k, v in vars(this_setting) :
+        except TypeError :
+            pass
+
+        try :
+            # custom class
+            for k, v in vars(this_setting).items() :
+                if k.startswith('__') :
+                    continue
                 if isinstance(v, ToSet) :
                     raise RuntimeError('settings.%s.%s not set by startup.main'%(name, k))
+        except TypeError :
+            pass
 #}}}
 
 def main(mode) :
