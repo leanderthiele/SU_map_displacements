@@ -366,3 +366,62 @@ class Block(nn.Module) :
 
         return x
 #}}}
+
+class UNetLevel(nn.Module) :
+    """
+    Implements one level of a UNet architecture, looking something like
+
+
+                             skip connection [optional]
+    input[in_layout]  ---------------------------------------------> x ----------> output[out_layout]
+        |                                                            ^
+        |                                                            |
+        | .contract                                                  | .expand
+        v                                                            |
+    output1[out_layout1]                                          input1[in_layout1]
+             ... do something and pass the data to the right ...
+
+
+    In the current implementation, the action is very rigid :
+        layout       := in_layout = out_layout
+        lower_layout := in_layout1 = out_layout1
+    and out_layout1 will have the resolution halfed.
+
+    Note that lower_layout will be available as members
+    after construction, which can be used to construct lower levels.
+
+    The only properties that can be controlled are by which factor
+    the number of feature channels will be increased
+    and whether there is a skip connection.
+    The number of density channels will be changed proportionally
+
+    Note also that the block properties at this level can be controlled using block_kw
+    """
+#{{{
+    def __init__(self, layout, skip=True, channel_factor=2, **block_kw) :
+        super().__init__()
+
+        assert layout.resolution % 2 == 0
+        self.lower_layout = Layout(channels=layout.channels*channel_factor, 
+                                   resolution=layout.resolution // 2,
+                                   density_channels=layout.density_channels*channel_factor)
+
+        self.contract_block = Block(layout, self.lower_layout, **block_kw)
+        self.expand_block = Block(self.lower_layout, layout, **block_kw)
+
+        self.skip = skip
+        # will hold the tensor for the skip connection in storage
+        self.xskip = None
+
+    def contract(self, x) :
+        if self.skip :
+            self.xskip = torch.clone(x)
+        return self.contract_block(x)
+
+    def expand(self, x) :
+        x = self.expand_block(x)
+        if self.skip :
+            x += self.xskip
+            x /= math.sqrt(2)
+        return x
+#}}}
