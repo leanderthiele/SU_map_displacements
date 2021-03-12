@@ -1,22 +1,76 @@
+from copy import deepcopy
+
 import torch
 import torch.nn as nn
 
 import settings
-from network_utils import Resample, Layout, Block
+from network_utils import Layout, Block, Level
 
 
 class Network(nn.Module) :
     """
-    the main network, currently only a debugging implementation
+    the main network.
+    We use a standard UNet architecture, looking like
+
+
+                       block_in                 {                   }                block_out
+    input[in_layout] ------------> [in_layout1] {    some levels    } [out_layout1] -----------> output[out_layout]
+                                                {                   }
+                                                  -------------->
+                                                   block through
+
+    We may want to do something special in the initial and final blocks,
+    so we keep them separate from the relatively rigid level structure.
+
+    Due to the current limitations, out_layout1 = in_layout1.
     """
+#{{{
     def __init__(self, *args, **kwargs) :
         super().__init__()
-        self.block1 = Block(in_layout=Layout(4, settings.NSIDE, 1),
-                            out_layout=Layout(8, settings.NSIDE//2, 2))
-        self.block2 = Block(in_layout=Layout(8, settings.NSIDE//2, 2),
-                            out_layout=Layout(3, settings.NSIDE, 0))
+
+        in_layout = Layout(channels=4 if settings.USE_DENSITY else 3,
+                           resolution=settings.NSIDE,
+                           density_channels=1 if settings.USE_DENSITY else 0)
+        out_layout = Layout(channels=3,
+                            resolution=settings.NSIDE,
+                            density_channels=0)
+
+        block_in_channel_factor = 2
+        in_layout1 = Layout(channels=block_in_channel_factor*in_layout.channels,
+                            resolution=in_layout.resolution,
+                            density_channels=block_in_channel_factor*in_layout.density_channels)
+
+        # construct the special blocks
+        self.block_in = Block(in_layout, in_layout1)
+        self.block_out = Block(in_layout1, out_layout)
+
+        # we hold the running layout in this variable as we step through the levels
+        tmp_layout = deepcopy(in_layout1)
+
+        # construct the levels
+        levels = []
+        Nlevels = 4
+        for _ in range(Nlevels) :
+            levels.append(Level(tmp_layout))
+            tmp_layout = deepcopy(levels[-1].lower_layout)
+        self.levels = nn.ModuleList(levels)
+
+        # construct the through-block at the bottom
+        self.block_through = Block(tmp_layout, tmp_layout)
+
 
     def forward(self, x, s) :
-        x = self.block1(x, s)
-        x = self.block2(x, s)
+        x = self.block_in(x, s)
+
+        for l in self.levels :
+            x = l.contract(x, s)
+
+        x = self.block_through(x, s)
+
+        for l in self.levels[::-1] :
+            x = l.expand(x, s)
+
+        x = self.block_out(x, s)
+
         return x
+#}}}

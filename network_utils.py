@@ -367,7 +367,7 @@ class Block(nn.Module) :
         return x
 #}}}
 
-class UNetLevel(nn.Module) :
+class Level(nn.Module) :
     """
     Implements one level of a UNet architecture, looking something like
 
@@ -413,13 +413,13 @@ class UNetLevel(nn.Module) :
         # will hold the tensor for the skip connection in storage
         self.xskip = None
 
-    def contract(self, x) :
+    def contract(self, x, s) :
         if self.skip :
             self.xskip = torch.clone(x)
-        return self.contract_block(x)
+        return self.contract_block(x, s)
 
-    def expand(self, x) :
-        x = self.expand_block(x)
+    def expand(self, x, s) :
+        x = self.expand_block(x, s)
         if self.skip :
             x += self.xskip
             x /= math.sqrt(2)
