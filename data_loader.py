@@ -1,5 +1,6 @@
 from glob import glob
 from enum import Enum, auto
+from time import time
 import numpy as np
 
 import torch
@@ -133,15 +134,15 @@ class Batch :
         Nchannels = 4 if settings.USE_DENSITY else 3
         self.inputs = torch.empty(len(data_items), Nchannels, *[settings.NSIDE,]*3,
                                   device=torch.device('cpu'),
-                                  pin_memory=False, # TODO
+                                  pin_memory=True,
                                   dtype=torch.float32)
         self.targets = torch.empty(len(data_items), 3, *[settings.NSIDE,]*3,
                                    device=torch.device('cpu'),
-                                   pin_memory=False, # TODO
+                                   pin_memory=True,
                                    dtype=torch.float32)
         self.styles = torch.empty(len(data_items), settings.NSTYLES,
                                   device=torch.device('cpu'),
-                                  pin_memory=False, # TODO
+                                  pin_memory=False,
                                   dtype=torch.float32)
 
         # for the target, we only require the displacement field,
@@ -154,12 +155,13 @@ class Batch :
             self.targets[ii, ...] = data_item.item2.tensor[offset:, ...]
             self.styles[ii, ...] = data_item.styles()
 
-        # now push the batch to the desired device
-        self.inputs = self.inputs.to(self.device, non_blocking=True)
-        self.targets = self.targets.to(self.device, non_blocking=True)
-        self.styles = self.styles.to(self.device)
-
         return self
+
+    def get_on_device(self) :
+        return self.inputs.to(self.device, non_blocking=True), \
+               self.targets.to(self.device, non_blocking=True), \
+               self.styles.to(self.device)
+
 #}}}
 
 class WorkerPool :
@@ -184,10 +186,11 @@ class WorkerPool :
         # we don't use just the worker_id but also the rank
         # so we truly get different random numbers in all workers,
         # not restricted to the current pool
-        # note that we get some entropy from the global rng (which is reseeded every epoch)
+        # note that we get some entropy from the time
         # so different epochs get different data augmentations
-        np.random.seed(np.random.get_state()[1][0]
-                       + self.rank * torch.utils.data.get_worker_info().num_workers + worker_id)
+        np.random.seed((hash(time())
+                        + (self.rank * torch.utils.data.get_worker_info().num_workers
+                           + worker_id)) % 2**32)
 
         # since this is called in a separate process,
         # we need to get a consistent view of the settings

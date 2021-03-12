@@ -97,10 +97,6 @@ def training_process(rank, world_size) :
         # set model into training mode
         ddp_model.train()
 
-        # we need to reseed the global random number generator
-        # so we get different augmentations each epoch
-        np.random.seed()
-
         # loop once through the training data
         for t, data in enumerate(training_loader) :
             
@@ -109,12 +105,14 @@ def training_process(rank, world_size) :
             
             assert isinstance(data, Batch)
 
+            inputs, targets, styles = data.get_on_device()
+
             # do the forward pass and compute loss
             optimizer.zero_grad()
 
-            prediction = ddp_model(data.inputs, data.styles)
+            prediction = ddp_model(inputs, styles)
 
-            this_training_loss = loss_fn(prediction, data.targets)
+            this_training_loss = loss_fn(prediction, targets)
 
             # update the loss storage
             training_loss[t] = this_training_loss.item()
@@ -137,8 +135,10 @@ def training_process(rank, world_size) :
 
                 assert isinstance(data, Batch)
 
-                prediction = ddp_model(data.inputs, data.styles)
-                validation_loss += loss_fn(prediction, data.targets).item()
+                inputs, targets, styles = data.get_on_device()
+
+                prediction = ddp_model(inputs, styles)
+                validation_loss += loss_fn(prediction, targets).item()
 
         # normalize (per data item)
         validation_loss /= len(validation_loader)
