@@ -19,15 +19,9 @@ def do_diagnostic_output(training_loss, validation_loss, Nepochs, epoch_len, wor
     training_times = np.linspace(0, Nepochs, num=Nepochs*epoch_len).repeat(world_size)
     validation_times = np.linspace(1, Nepochs, num=Nepochs).repeat(world_size)
 
-    training_loss_arr = np.empty(len(training_times))
-    validation_loss_arr = np.empty(len(validation_times))
-    for ii in range(len(training_loss_arr)) :
-        training_loss_arr[ii] = training_loss[ii]
-    for ii in range(len(validation_loss_arr)) :
-        validation_loss_arr[ii] = validation_loss[ii]
-
     np.savez(settings.LOSS_FILE, training_times=training_times, validation_times=validation_times,
-                                 training_loss=training_loss_arr, validation_loss=validation_loss_arr)
+                                 training_loss=np.array(training_loss),
+                                 validation_loss=np.array(validation_loss_arr))
 #}}}
 
 def save_model(model) :
@@ -52,7 +46,7 @@ def cleanup_process() :
     torch.distributed.destroy_process_group()
 #}}}
 
-def training_process(rank, world_size, diagnostic_barrier, training_loss, validation_loss) :
+def training_process(rank, world_size, diagnostic_barrier, diagnostic_pipes) :
     """
     A single training process, working on its own data.
 
@@ -67,14 +61,22 @@ def training_process(rank, world_size, diagnostic_barrier, training_loss, valida
     model = Network().to(rank)
     ddp_model = DistributedDataParallel(model, device_ids=[rank])
     
-    # TODO write Loss function and Optimizer
     loss_fn = Loss()
     optimizer = Optimizer(ddp_model.parameters())
 
     training_loader = DataLoader(DataModes.TRAINING, rank, world_size)
     validation_loader = DataLoader(DataModes.VALIDATION, rank, world_size)
 
+    if rank == 0 :
+        # root holds the data for all epochs (so we can easily produce plots etc.)
+        all_training_loss = []
+        all_validation_loss = []
+
     for epoch in range(settings.EPOCHS) :
+        
+        # create the variables we will later share with the root thread
+        training_loss = []
+        validation_loss = 0.0
 
         # set model into training mode
         ddp_model.train()
@@ -86,38 +88,73 @@ def training_process(rank, world_size, diagnostic_barrier, training_loss, valida
 
             # do the forward pass and compute loss
             optimizer.zero_grad()
-            prediction = ddp_model(data.inputs, data.styles)
-            this_training_loss = loss_fn(prediction, data.targets)
 
-            # update the loss storage
-            training_loss[epoch*world_size*len(training_loader) + t*world_size + rank] \
-                = this_training_loss.item()
+            print('computing prediction...')
+            # FIXME for debugging
+            with torch.autograd.detect_anomaly() :
+                prediction = ddp_model(data.inputs, data.styles)
 
-            # update weights -- this is an implicit synchronization point!
-            this_training_loss.backward()
+                print('computing loss...')
+                this_training_loss = loss_fn(prediction, data.targets)
+
+                # update the loss storage
+                training_loss.append(this_training_loss.item())
+
+                # update weights -- this is an implicit synchronization point!
+                print('calling backward()...')
+                this_training_loss.backward()
+
+            print('calling optimizer.step()...')
             optimizer.step()
+
+            print('done with this data item')
 
         # set model into evaluation mode
         ddp_model.eval()
         
         # loop once through the validation data
-        this_validation_loss = 0.0
         with torch.no_grad() :
             for t, data in enumerate(validation_loader) :
 
                 assert isinstance(data, Batch)
 
                 prediction = ddp_model(data.inputs, data.styles)
-                this_validation_loss += loss_fn(prediction, data.targets).item()
+                validation_loss += loss_fn(prediction, data.targets).item()
 
-        validation_loss[epoch*world_size + rank] = this_validation_loss / len(validation_loader)
+        # normalize (per data item)
+        validation_loss /= len(validation_loader)
 
         # now give diagnostic output -- we need to wait for all threads to reach this point so
         # we have the validation loss complete
-        idx = diagnostic_barrier.wait()
-        if idx == 0 :
+        diagnostic_barrier.wait()
+
+        # non-root processes send their loss statistics to root
+        if rank != 0 :
+            diagnostic_pipes[rank-1][1].send((training_loss, validation_loss))
+        else :
+            len_my_training_loss = len(training_loss) # for consistency checks
+            training_loss = [training_loss, ] # list of lists
+            validation_loss = [validation_loss, ] # list of scalars
+
+            # collect data from the other processes
+            for ii in range(world_size-1) :
+                t, v = diagnostic_pipes[ii][0].recv()
+                assert len(t) == len_my_training_loss
+                training_loss.append(t)
+                validation_loss.append(v)
+            assert len(training_loss) == len(validation_loss) == world_size
+
+            # now write into the long lists (with some reshuffling)
+            for ii in range(len_my_training_loss) :
+                for jj in range(world_size) :
+                    all_training_loss.append(training_loss[jj][ii])
+            for ii in range(world_size) :
+                all_validation_loss.append(validation_loss[ii])
+                    
+
             do_diagnostic_output(training_loss, validation_loss, epoch+1, epoch_len, world_size)
-        if (world_size == 1 and idx == 0) or idx == 1 :
+
+        if (world_size == 1 and rank == 0) or rank == 1 :
             save_model(ddp_model)
 
     # we're done, let's release resources
@@ -129,15 +166,15 @@ def main() :
     launches a couple of training_process's
     """
 #{{{
+
     world_size = torch.cuda.device_count()
 
     # create some objects that we need to share between processes
     diagnostic_barrier = torch_mp.Barrier(world_size)
-    training_loss = torch_mp.Array('d', settings.EPOCHS * 100 * 48)
-    validation_loss = torch_mp.Array('d', settings.EPOCHS * world_size)
+    diagnostic_pipes = [torch_mp.Pipe(False) for ii in range(world_size-1)]
 
     torch_mp.spawn(training_process,
-                   args=(world_size, diagnostic_barrier, training_loss, validation_loss, ),
+                   args=(world_size, diagnostic_barrier, diagnostic_pipes, ),
                    nprocs=world_size)
 #}}}
 

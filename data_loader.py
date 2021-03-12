@@ -47,7 +47,7 @@ class Dataset(torch_Dataset) :
                 if settings.ONLY_FROM_ZERO and not run1.is_zero() :
                     continue
 
-                for i2, run_fname2 in enumerate(run_fnames, start=i1+1) :
+                for i2, run_fname2 in enumerate(run_fnames[i1+1:]) :
                     run2 = SimulationRun(run_fname2)
                     self.run_pairs.append(tuple(sorted((run1, run2), key=lambda x : x.delta_L)))
 
@@ -63,10 +63,12 @@ class Dataset(torch_Dataset) :
         elif self.mode is DataModes.TRAINING :
             self.run_pairs = self.run_pairs[settings.NSAMPLES_TESTING+settings.NSAMPLES_VALIDATION :]
         else :
-            raise RuntimeError('Invalid mode {}'.format(mode))
+            raise RuntimeError('Invalid mode {}'.format(self.mode))
 
         self.rank = rank
         self.world_size = world_size
+
+        print('Dataset.__init__ : found %d samples in dataset %s'%(len(self.run_pairs), str(self.mode)))
 
     def getitem_all(self, idx) :
         # operates on the entire dataset
@@ -125,15 +127,15 @@ class Batch :
         Nchannels = 4 if settings.USE_DENSITY else 3
         self.inputs = torch.empty(len(data_items), Nchannels, *[settings.NSIDE,]*3,
                                   device=torch.device('cpu'),
-                                  pin_memory=False,
+                                  pin_memory=False, # TODO
                                   dtype=torch.float32)
         self.targets = torch.empty(len(data_items), 3, *[settings.NSIDE,]*3,
                                    device=torch.device('cpu'),
-                                   pin_memory=False,
+                                   pin_memory=False, # TODO
                                    dtype=torch.float32)
         self.styles = torch.empty(len(data_items), settings.NSTYLES,
                                   device=torch.device('cpu'),
-                                  pin_memory=False,
+                                  pin_memory=False, # TODO
                                   dtype=torch.float32)
 
         # for the target, we only require the displacement field,
@@ -148,7 +150,7 @@ class Batch :
 
         # now push the batch to the desired device
         self.inputs = self.inputs.to(self.device, non_blocking=True)
-        self.outputs = self.outputs.to(self.device, non_blocking=True)
+        self.targets = self.targets.to(self.device, non_blocking=True)
         self.styles = self.styles.to(self.device)
 
         return self

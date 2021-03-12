@@ -71,8 +71,6 @@ class DataItem :
 
         # do the axis reversal
         # we need to be careful here because of the 0th (channel) dimension
-        print([ii+1 for ii in indices])
-        print(self.displacement.shape)
         self.displacement = np.flip(self.displacement, [ii+1 for ii in indices])
         if self.density is not None :
             self.density = np.flip(self.density, [ii+1 for ii in indices])
@@ -85,8 +83,6 @@ class DataItem :
         # permutation is a permutation of [0,1,2] 
 
         # when transposing, we need to preserve the channel dimension
-        print([0,]+[ii+1 for ii in permutation])
-        print(self.displacement.shape)
         self.displacement = np.transpose(self.displacement, axes=[0,]+[ii+1 for ii in permutation])
         if self.density is not None :
             self.density = np.transpose(self.density, axes=[0,]+[ii+1 for ii in permutation])

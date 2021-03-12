@@ -31,9 +31,9 @@ def crop(x, num=1) :
     x is assumed to have shape [batch, channel, x1, x2, x3]
     """
 #{{{
-    return x.narrow(2, num/2, x.shape[2]-num) \
-            .narrow(3, num/2, x.shape[3]-num) \
-            .narrow(4, num/2, x.shape[4]-num) \
+    return x.narrow(2, num//2, x.shape[2]-num) \
+            .narrow(3, num//2, x.shape[3]-num) \
+            .narrow(4, num//2, x.shape[4]-num) \
             .contiguous()
 #}}}
 
@@ -68,10 +68,16 @@ class Layout :
         self.density_channels = density_channels
 #}}}
 
-class Activation(nn.Module) :
+class Activation_BROKEN(nn.Module) :
     """
     our custom activation function that works on the channels we associate with density
     and on those we associate with displacement separately
+
+    UPDATE : we don't seem to be able to work on channels separately...
+             the backward function fails to compute gradients then.
+             
+             That's why I "commented out" this module, use the one below for now
+             until we figure out how to do this
     """
 #{{{
     def __init__(self, layout) :
@@ -89,6 +95,17 @@ class Activation(nn.Module) :
             x[:, :self.density_channels, ...] = self.density_activation(x[:, :self.density_channels, ...])
         x[:, self.density_channels:, ...] = self.displacement_activation(x[:, self.density_channels:, ...])
         return x
+#}}}
+
+class Activation(nn.Hardshrink) :
+    """
+    the parent class applied to all channels.
+    Needs to respect sign symmetry for the displacement channels.
+    Replaces the above for now
+    """
+#{{{
+    def __init__(self, *args) :
+        super().__init__()
 #}}}
 
 class Conv3d(nn.Module) :
@@ -224,13 +241,17 @@ class StyleConv3d(nn.Module) :
             fan_in_dim = (1, 3, 4, 5)
         else:
             fan_in_dim = (2, 3, 4, 5)
-        w *= torch.rsqrt(w.pow(2).sum(dim=fan_in_dim, keepdim=True) + eps)
+
+        # NOTE : for some weird reason torch complains about an in-place operation if I do the
+        #        (in my understanding) completely equivalent W *= ... (as was there in the original code)
+        #        Introducing the temporary w1 solves this problem.
+        w1 = w * torch.rsqrt(w.pow(2).sum(dim=fan_in_dim, keepdim=True) + eps)
 
         # LFT : this piece of code is a bit tricky -- what it does is to have a different weight
         #       for each batch, still performing this operation in a single call
-        w = w.reshape(N * C0, C1, *K3)
+        w1 = w1.reshape(N * C0, C1, *K3)
         x = x.reshape(1, N * Cin, *DHWin)
-        x = self.conv(x, w, self.bias, groups=N)
+        x = self.conv(x, w1, self.bias, groups=N)
         _, _, *DHWout = x.shape
         x = x.reshape(N, Cout, *DHWout)
 
@@ -270,6 +291,7 @@ class Layer(nn.Module) :
             self.do_styles = True
             self.conv = StyleConv3d(N_styles=styles, **common_conv_kwargs)
         else :
+            assert isinstance(styles, bool)
             self.do_styles = False
             self.conv = Conv3d(external_weight=False, group_mode=group_mode, **common_conv_kwargs)
 
@@ -329,16 +351,17 @@ class Block(nn.Module) :
         self.layers = nn.ModuleList(layers)
 
     def forward(self, x, s) :
+
         x = self.layers[0](x, s)
         
         if self.residual :
             xres = torch.clone(x)
 
-        for _, l in enumerate(self.layers, start=1) :
+        for _, l in enumerate(self.layers[1:]) :
             x = l(x, s)
 
         if self.residual :
-            x += x0
+            x += xres
             x /= math.sqrt(2)
 
         return x
