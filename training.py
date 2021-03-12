@@ -43,7 +43,7 @@ def setup_process(rank, world_size) :
     # to be called at the beginning of a child process
 #{{{
     # new process needs to get a consistent view of the settings
-    startup.main()
+    startup.main(DataModes.TRAINING)
 
     # these are taken from the example at https://pytorch.org/tutorials/intermediate/ddp_tutorial.html
     os.environ['MASTER_ADDR'] = 'localhost'
@@ -180,5 +180,5 @@ def main() :
 #}}}
 
 if __name__ == '__main__' :
-    startup.main()
+    startup.main(DataModes.TRAINING)
     main()

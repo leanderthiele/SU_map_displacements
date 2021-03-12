@@ -2,12 +2,48 @@
 """
 This file contains some global switches etc. that we'd like to
 use in different parts of the code.
-NOTE : for simplicity, we should not write to the variables in this file!
+
+We adopt the convention that only variables that are initialized
+as instances of the ToSet class are allowed to be changed by the startup.main
+method.
+This allows us to easily distinguish between real hardcoded values and default
+values (all of which can then be found somewhere in startup.py)
+
+This can be consistently implemented by only assigning to variables in this module
+through expressions of the form
+    `variable = variable.set(value)'
+[ objects that are not instances of ToSet won't implement this interface so we'd get an error ]
 """
+
+class ToSet :
+    """
+    settings that are required to be set by startup.main() are initialized
+    as instances of this class.
+
+    Implements the set(value) method, which at the moment is trivial but can
+    potentially be used to implement some logic later
+
+    At the moment, there's no further logic in this class, but it can be added
+    if needed (e.g. with a `required' switch)
+    """
+#{{{
+    def __init__(self) :
+        pass
+    def set(self, value) :
+        return value
+#}}}
 
 # this one is simply for debugging purposes, functions that use variables from
 # this module can check whether they have a correct view
 STARTUP_CALLED = False
+
+# the global mode of execution
+MODE = ToSet()
+
+# the global ID of this run
+# we can use it, for example, to produce unique output file names
+# and identify which files we should load as input during testing
+ID = ToSet()
 
 # whether we want to map only from the zero DC mode to others
 # or, if False, from any DC mode to any other
@@ -27,6 +63,7 @@ H_UNITS = False
 #           [3] z = 1
 #           [4] z = 0.5
 #           [5] z = 0
+# FIXME this will be different with the 128 runs
 # TODO we can generalize this into a list and map between redshifts.
 #      In that case, redshift has to be an additional style
 SNAP_IDX = 5
@@ -69,6 +106,10 @@ NSTYLES = 1
 # where we store the parameters required for the normalization functions 
 NORMALIZATION_FILE = 'normalization.npz'
 
+# dicts that store lambda functions for the normalization
+DENSITY_NORMALIZATIONS = ToSet()
+DISPLACEMENT_NORMALIZATIONS = ToSet()
+
 # set this to a high number (but not too high since we allocate some buffers proportionally)
 EPOCHS = 1000
 
@@ -79,8 +120,11 @@ OPTIMIZER_ARGS = dict(lr=1e-3,
                       weight_decay=0.0, # L2 penalty
                       amsgrad=False)
 
+# where all data files will go
+DATA_PATH = 'results'
+
 # where we store the training and validation loss
-LOSS_FILE = 'loss.npz'
+LOSS_FILE = ToSet()
 
 # where to store the model during training
-MODEL_FILE = 'model.pt'
+MODEL_FILE = ToSet()

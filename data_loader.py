@@ -76,9 +76,9 @@ class Dataset(torch_Dataset) :
         item_idx = idx // 48
         augmentation_index = idx % 48
 
-        return InputTargetPair(DataItem(self.run_pairs[item_idx][0]),
-                               DataItem(self.run_pairs[item_idx][1])) \
-                   .normalize(self.mode) \
+        return InputTargetPair(DataItem(self.mode, self.run_pairs[item_idx][0]),
+                               DataItem(self.mode, self.run_pairs[item_idx][1])) \
+                   .normalize() \
                    .augment_data(augmentation_index) \
                    .to_torch()
 
@@ -155,7 +155,7 @@ class Batch :
         return self
 #}}}
 
-class Worker :
+class WorkerPool :
     """
     at the moment, this is simply used as a callable for the worker_init_fn
     argument for the pytorch DataLoader in order to do stuff that we require
@@ -165,16 +165,17 @@ class Worker :
     not the lower level multiprocessing that happens in the worker teams.
     """
 #{{{
-    def __init__(self, rank, world_size) :
+    def __init__(self, mode, rank, world_size) :
+        self.mode = mode
         self.rank = rank
         self.world_size = world_size
 
-    def __call__(self, worker_id) :
+    def init_worker(self, worker_id) :
         # use this method as worker_init_fn
 
         # since this is called in a separate process,
         # we need to get a consistent view of the settings
-        startup.main()
+        startup.main(self.mode)
 #}}}
 
 class DataLoader(torch_DataLoader) :
@@ -184,10 +185,11 @@ class DataLoader(torch_DataLoader) :
 #{{{
     def __init__(self, mode, rank, world_size) :
         self.dataset = Dataset(mode, rank, world_size)
+        self.worker_pool = WorkerPool(mode, rank, world_size)
         super().__init__(self.dataset,
                          collate_fn=Batch(rank),
                          # the workers are implemented as separate processes,
                          # so we need to make sure they seed a consistent view of the configuration options
-                         worker_init_fn=Worker(rank, world_size),
+                         worker_init_fn=self.worker_pool.init_worker,
                          **settings.DATALOADER_ARGS)
 #}}}

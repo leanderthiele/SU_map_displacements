@@ -10,7 +10,9 @@ class DataItem :
     constructs a network-friendly representation of a simulation run
     """
 #{{{
-    def __init__(self, run) :
+    def __init__(self, mode, run) :
+
+        self.mode = mode
 
         self.seed = run.seed
         self.delta_L = run.delta_L
@@ -46,23 +48,14 @@ class DataItem :
         # (channel is the 3d dimensionality)
         self.displacement = np.moveaxis(self.displacement, -1, 0)
 
-    def normalize(self, mode) :
+    def normalize(self) :
         # cannot be called after to_torch()
         # TODO in principle, we could think about using the same normalization function
         #      everywhere here. Then it would simply be a collection of magic numbers.
 
-        # load the normalization constants from file and make functions from them
-        # NOTE this is quite inefficient (frequent small disk I/O)
-        #      but I don't think it's going to be a bottleneck
-        with np.load(settings.NORMALIZATION_FILE) as f :
-            sigma_displacement, sigma_density, A, B = f[str(mode)]
-        density_normalization = lambda x : A * ( np.log1p(x/sigma_density) - B )
-        displacement_normalization = lambda x : x / sigma_displacement
-
-        # now call the functions on our numpy arrays
         if settings.USE_DENSITY :
-            self.density = density_normalization(self.density)
-        self.displacement = displacement_normalization(self.displacement)
+            self.density = settings.DENSITY_NORMALIZATIONS[self.mode](self.density)
+        self.displacement = settings.DISPLACEMENT_NORMALIZATIONS[self.mode](self.displacement)
 
         return self
 
@@ -140,8 +133,8 @@ class InputTargetPair :
     def normalize(self, mode) :
         # performs normalization according to the supplied functions
         # Needs to be called prior to to_torch()
-        self.item1 = self.item1.normalize(mode)
-        self.item2 = self.item2.normalize(mode)
+        self.item1 = self.item1.normalize()
+        self.item2 = self.item2.normalize()
         return self
 
     def augment_data(self, rand_int=None) :
