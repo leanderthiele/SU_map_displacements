@@ -9,6 +9,7 @@ from torch.nn.parallel import DistributedDataParallel
 import torch.multiprocessing as torch_mp
 
 import settings
+import startup
 from data_loader import DataModes, Batch, DataLoader
 from network import Network
 from train_utils import Loss, Optimizer
@@ -41,6 +42,9 @@ def load_model(model, rank) :
 def setup_process(rank, world_size) :
     # to be called at the beginning of a child process
 #{{{
+    # new process needs to get a consistent view of the settings
+    startup.main()
+
     # these are taken from the example at https://pytorch.org/tutorials/intermediate/ddp_tutorial.html
     os.environ['MASTER_ADDR'] = 'localhost'
     os.environ['MASTER_PORT'] = '12355'
@@ -176,4 +180,5 @@ def main() :
 #}}}
 
 if __name__ == '__main__' :
+    startup.main()
     main()

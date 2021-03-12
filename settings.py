@@ -5,6 +5,10 @@ use in different parts of the code.
 NOTE : for simplicity, we should not write to the variables in this file!
 """
 
+# this one is simply for debugging purposes, functions that use variables from
+# this module can check whether they have a correct view
+STARTUP_CALLED = False
+
 # whether we want to map only from the zero DC mode to others
 # or, if False, from any DC mode to any other
 ONLY_FROM_ZERO = True

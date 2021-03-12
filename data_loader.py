@@ -7,6 +7,7 @@ from torch.utils.data.dataset import Dataset as torch_Dataset
 from torch.utils.data import DataLoader as torch_DataLoader
 
 import settings
+import startup
 import sim_utils
 from simulation_run import SimulationRun
 from data_item import DataItem, InputTargetPair
@@ -154,6 +155,27 @@ class Batch :
         return self
 #}}}
 
+class Worker :
+    """
+    at the moment, this is simply used as a callable for the worker_init_fn
+    argument for the pytorch DataLoader in order to do stuff that we require
+    to happen at the start of a worker process.
+
+    Note that `rank' and `world_size' refer to the top-level multiprocessing,
+    not the lower level multiprocessing that happens in the worker teams.
+    """
+#{{{
+    def __init__(self, rank, world_size) :
+        self.rank = rank
+        self.world_size = world_size
+
+    def __call__(self, worker_id) :
+        # use this method as worker_init_fn
+
+        # since this is called in a separate process,
+        # we need to get a consistent view of the settings
+        startup.main()
+#}}}
 
 class DataLoader(torch_DataLoader) :
     """
@@ -162,5 +184,10 @@ class DataLoader(torch_DataLoader) :
 #{{{
     def __init__(self, mode, rank, world_size) :
         self.dataset = Dataset(mode, rank, world_size)
-        super().__init__(self.dataset, collate_fn=Batch(rank), **settings.DATALOADER_ARGS)
+        super().__init__(self.dataset,
+                         collate_fn=Batch(rank),
+                         # the workers are implemented as separate processes,
+                         # so we need to make sure they seed a consistent view of the configuration options
+                         worker_init_fn=Worker(rank, world_size),
+                         **settings.DATALOADER_ARGS)
 #}}}
