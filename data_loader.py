@@ -184,7 +184,10 @@ class WorkerPool :
         # we don't use just the worker_id but also the rank
         # so we truly get different random numbers in all workers,
         # not restricted to the current pool
-        np.random.seed(self.rank * torch.utils.data.get_worker_info().num_workers + worker_id)
+        # note that we get some entropy from the global rng (which is reseeded every epoch)
+        # so different epochs get different data augmentations
+        np.random.seed(np.random.get_state()[1][0]
+                       + self.rank * torch.utils.data.get_worker_info().num_workers + worker_id)
 
         # since this is called in a separate process,
         # we need to get a consistent view of the settings

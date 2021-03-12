@@ -97,6 +97,10 @@ def training_process(rank, world_size) :
         # set model into training mode
         ddp_model.train()
 
+        # we need to reseed the global random number generator
+        # so we get different augmentations each epoch
+        np.random.seed()
+
         # loop once through the training data
         for t, data in enumerate(training_loader) :
             
