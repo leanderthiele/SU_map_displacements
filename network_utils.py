@@ -243,7 +243,7 @@ class StyleConv3d(nn.Module) :
             fan_in_dim = (2, 3, 4, 5)
 
         # NOTE : for some weird reason torch complains about an in-place operation if I do the
-        #        (in my understanding) completely equivalent W *= ... (as was there in the original code)
+        #        (in my understanding) completely equivalent w *= ... (as was there in the original code)
         #        Introducing the temporary w1 solves this problem.
         w1 = w * torch.rsqrt(w.pow(2).sum(dim=fan_in_dim, keepdim=True) + eps)
 

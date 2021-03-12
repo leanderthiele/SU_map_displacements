@@ -87,7 +87,7 @@ def training_process(rank, world_size) :
         # create the variables we will later share with the root thread
         # note that it is useful to set the training loss to an impossible state initially
         # because we can catch bugs more easily
-        training_loss = -1.0 * np.ones(len(training_loader))
+        training_loss = np.full(len(training_loader), -1.0)
         validation_loss = 0.0
 
         # set model into training mode
@@ -120,7 +120,6 @@ def training_process(rank, world_size) :
                 print('\tSample %.3d / %d finished in epoch %d, '\
                       'took %f seconds'%(t+1, len(training_loader), epoch+1, time()-start_time_sample))
 
-
         # set model into evaluation mode
         ddp_model.eval()
         
@@ -135,11 +134,6 @@ def training_process(rank, world_size) :
 
         # normalize (per data item)
         validation_loss /= len(validation_loader)
-
-        # now give diagnostic output -- we need to wait for all threads to reach this point so
-        # we have the validation loss complete
-        # TODO do we really need to have this barrier here?
-        torch.distributed.barrier()
 
         # buffers for gathering
         all_training_loss = [np.empty(0), ] * world_size
