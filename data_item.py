@@ -144,7 +144,7 @@ class InputTargetPair :
         # rand_int should be a callable that produces a random integer,
         # or a random integer
         if rand_int is None :
-            r = np.random.default_rng(hash(self) % 2**32).integers(2**32)
+            r = np.random.default_rng(id(self) % 2**32).integers(2**32)
         elif callable(rand_int) :
             r = rand_int()
         elif isinstance(rand_int, int) :

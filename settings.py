@@ -100,6 +100,12 @@ DATASET_SHUFFLING_SEED = 137
 NSAMPLES_TESTING = 5
 NSAMPLES_VALIDATION = 10
 
+# how many data augmentations to do per sample per epoch
+# must be <= 48 and divisible by the number of GPUs
+# (note that all 48 augmentations will still occur if this is set
+#  to less than 48, just not every epoch for every sample)
+N_AUGMENTATIONS = 4
+
 # number of styles, 1 for delta_L only
 NSTYLES = 1
 

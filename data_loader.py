@@ -72,27 +72,35 @@ class Dataset(torch_Dataset) :
         # operates on the entire dataset
 
         # figure out which run and which data augmentation this idx refers to
-        item_idx = idx // 48
-        augmentation_index = idx % 48
+        run_idx = idx // settings.N_AUGMENTATIONS
 
-        return InputTargetPair(DataItem(self.mode, self.run_pairs[item_idx][0]),
-                               DataItem(self.mode, self.run_pairs[item_idx][1])) \
+        if settings.N_AUGMENTATIONS != 48 :
+            # need to use a non-deterministic method, otherwise we won't
+            # sample all augmentations
+            augmentation_index = np.random.randint(48)
+        else :
+            # can use the deterministic method, sampling all augmentations
+            augmentation_index = idx % settings.N_AUGMENTATIONS
+
+        return InputTargetPair(DataItem(self.mode, self.run_pairs[run_idx][0]),
+                               DataItem(self.mode, self.run_pairs[run_idx][1])) \
                    .normalize() \
                    .augment_data(augmentation_index) \
                    .to_torch()
 
     def __getitem__(self, idx) :
         # operates on the sub-dataset corresponding to this rank
+
         return self.getitem_all(idx * self.world_size + self.rank)
 
     def len_all(self) :
         # operates on the entire dataset
 
-        # note that we have 48 augmented vesions for each item!
-        return 48 * len(self.run_pairs)
+        return settings.N_AUGMENTATIONS * len(self.run_pairs)
 
     def __len__(self) :
         # operates on the sub-dataset corresponding to this rank
+
         return self.len_all() // self.world_size
 #}}}
 
@@ -171,6 +179,12 @@ class WorkerPool :
 
     def init_worker(self, worker_id) :
         # use this method as worker_init_fn
+
+        # initialize the random seed for this process
+        # we don't use just the worker_id but also the rank
+        # so we truly get different random numbers in all workers,
+        # not restricted to the current pool
+        np.random.seed(self.rank * torch.utils.data.get_worker_info().num_workers + worker_id)
 
         # since this is called in a separate process,
         # we need to get a consistent view of the settings
