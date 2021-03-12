@@ -14,21 +14,28 @@ from network import Network
 from train_utils import Loss, Optimizer
 
 def do_diagnostic_output(training_loss, validation_loss, Nepochs, epoch_len, world_size) :
-    # we do not make assumptions about the length or data type of the *_loss arrays,
-    # we only need to know that we can subscript them to get a float
 #{{{
     training_times = np.linspace(0, Nepochs, num=Nepochs*epoch_len).repeat(world_size)
     validation_times = np.linspace(1, Nepochs, num=Nepochs).repeat(world_size)
 
     np.savez(settings.LOSS_FILE, training_times=training_times, validation_times=validation_times,
-                                 training_loss=np.array(training_loss),
-                                 validation_loss=np.array(validation_loss_arr))
+                                 training_loss=training_loss, validation_loss=validation_loss)
 #}}}
 
 def save_model(model) :
-    # TODO
+    # this function will only be called from the rank=0 process
 #{{{
-    pass
+    torch.save(model.state_dict(), settings.MODEL_FILE)
+#}}}
+
+def load_model(model, rank) :
+    # this function will be called from any process, we need to make sure we map
+    # the tensors to the correct devices
+    # TODO we probably want to store other data as well, most importantly the optimizer state dict
+    #      other things we can put in are the loss curves
+#{{{
+    map_location = { 'cuda:0' : 'cuda:%d'%rank }
+    model.load_state_dict(torch.load(settings.MODEL_FILE, map_location=map_location))
 #}}}
 
 def setup_process(rank, world_size) :
@@ -39,6 +46,10 @@ def setup_process(rank, world_size) :
     os.environ['MASTER_PORT'] = '12355'
 
     torch.distributed.init_process_group('nccl', rank=rank, world_size=world_size)
+
+    # note that we only call this because the documentation for all_gather_object says we need to
+    # when using NCCL
+    torch.cuda.set_device(rank)
 #}}}
 
 def cleanup_process() :
@@ -47,7 +58,7 @@ def cleanup_process() :
     torch.distributed.destroy_process_group()
 #}}}
 
-def training_process(rank, world_size, diagnostic_barrier, diagnostic_pipes) :
+def training_process(rank, world_size) :
     """
     A single training process, working on its own data.
 
@@ -68,18 +79,15 @@ def training_process(rank, world_size, diagnostic_barrier, diagnostic_pipes) :
     training_loader = DataLoader(DataModes.TRAINING, rank, world_size)
     validation_loader = DataLoader(DataModes.VALIDATION, rank, world_size)
 
-    if rank == 0 :
-        # root holds the data for all epochs (so we can easily produce plots etc.)
-        all_training_loss = []
-        all_validation_loss = []
-
     for epoch in range(settings.EPOCHS) :
         
         if rank == 0 :
             start_time_epoch = time()
         
         # create the variables we will later share with the root thread
-        training_loss = []
+        # note that it is useful to set the training loss to an impossible state initially
+        # because we can catch bugs more easily
+        training_loss = -1.0 * np.ones(len(training_loader))
         validation_loss = 0.0
 
         # set model into training mode
@@ -101,7 +109,7 @@ def training_process(rank, world_size, diagnostic_barrier, diagnostic_pipes) :
             this_training_loss = loss_fn(prediction, data.targets)
 
             # update the loss storage
-            training_loss.append(this_training_loss.item())
+            training_loss[t] = this_training_loss.item()
 
             # update weights -- this is an implicit synchronization point!
             this_training_loss.backward()
@@ -130,32 +138,25 @@ def training_process(rank, world_size, diagnostic_barrier, diagnostic_pipes) :
 
         # now give diagnostic output -- we need to wait for all threads to reach this point so
         # we have the validation loss complete
-        diagnostic_barrier.wait()
+        # TODO do we really need to have this barrier here?
+        torch.distributed.barrier()
 
-        # non-root processes send their loss statistics to root
-        if rank != 0 :
-            diagnostic_pipes[rank-1][1].send((training_loss, validation_loss))
-        else :
-            len_my_training_loss = len(training_loss) # for consistency checks
-            training_loss = [training_loss, ] # list of lists
-            validation_loss = [validation_loss, ] # list of scalars
+        # buffers for gathering
+        all_training_loss = [np.empty(0), ] * world_size
+        all_validation_loss = [0.0, ] * world_size
 
-            # collect data from the other processes
-            for ii in range(world_size-1) :
-                t, v = diagnostic_pipes[ii][0].recv()
-                assert len(t) == len_my_training_loss
-                training_loss.append(t)
-                validation_loss.append(v)
-            assert len(training_loss) == len(validation_loss) == world_size
+        # gather the loss values from all processes
+        # note that only the rank=0 process actually needs them, but gather_object is not supported
+        # when using NCCL
+        torch.distributed.all_gather_object(all_training_loss, training_loss)
+        torch.distributed.all_gather_object(all_validation_loss, validation_loss)
 
-            # now write into the long lists (with some reshuffling)
-            for ii in range(len_my_training_loss) :
-                for jj in range(world_size) :
-                    all_training_loss.append(training_loss[jj][ii])
-            for ii in range(world_size) :
-                all_validation_loss.append(validation_loss[ii])
-
-            do_diagnostic_output(training_loss, validation_loss, epoch+1, len(training_loader), world_size)
+        if rank == 0 :
+            # interleave the training loss arrays so the losses are temporally correctly ordered
+            all_training_loss = np.vstack(all_training_loss).reshape((-1,), order='F')
+            all_validation_loss = np.array(all_validation_loss)
+            do_diagnostic_output(all_training_loss, all_validation_loss,
+                                 epoch+1, len(training_loader), world_size)
 
         if (world_size == 1 and rank == 0) or rank == 1 :
             save_model(ddp_model)
@@ -175,12 +176,8 @@ def main() :
 
     world_size = torch.cuda.device_count()
 
-    # create some objects that we need to share between processes
-    diagnostic_barrier = torch_mp.Barrier(world_size)
-    diagnostic_pipes = [torch_mp.Pipe(False) for ii in range(world_size-1)]
-
     torch_mp.spawn(training_process,
-                   args=(world_size, diagnostic_barrier, diagnostic_pipes, ),
+                   args=(world_size, ),
                    nprocs=world_size)
 #}}}
 

@@ -77,3 +77,6 @@ OPTIMIZER_ARGS = dict(lr=1e-3,
 
 # where we store the training and validation loss
 LOSS_FILE = 'loss.npz'
+
+# where to store the model during training
+MODEL_FILE = 'model.pt'
