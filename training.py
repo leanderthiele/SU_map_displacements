@@ -1,4 +1,5 @@
 import os
+from time import time
 
 import numpy as np
 
@@ -74,6 +75,9 @@ def training_process(rank, world_size, diagnostic_barrier, diagnostic_pipes) :
 
     for epoch in range(settings.EPOCHS) :
         
+        if rank == 0 :
+            start_time_epoch = time()
+        
         # create the variables we will later share with the root thread
         training_loss = []
         validation_loss = 0.0
@@ -84,30 +88,30 @@ def training_process(rank, world_size, diagnostic_barrier, diagnostic_pipes) :
         # loop once through the training data
         for t, data in enumerate(training_loader) :
             
+            if rank == 0 :
+                start_time_sample = time()
+            
             assert isinstance(data, Batch)
 
             # do the forward pass and compute loss
             optimizer.zero_grad()
 
-            print('computing prediction...')
-            # FIXME for debugging
-            with torch.autograd.detect_anomaly() :
-                prediction = ddp_model(data.inputs, data.styles)
+            prediction = ddp_model(data.inputs, data.styles)
 
-                print('computing loss...')
-                this_training_loss = loss_fn(prediction, data.targets)
+            this_training_loss = loss_fn(prediction, data.targets)
 
-                # update the loss storage
-                training_loss.append(this_training_loss.item())
+            # update the loss storage
+            training_loss.append(this_training_loss.item())
 
-                # update weights -- this is an implicit synchronization point!
-                print('calling backward()...')
-                this_training_loss.backward()
+            # update weights -- this is an implicit synchronization point!
+            this_training_loss.backward()
 
-            print('calling optimizer.step()...')
             optimizer.step()
+            
+            if rank == 0 :
+                print('\tSample %.3d / %d finished in epoch %d, '\
+                      'took %f seconds'%(t+1, len(training_loader), epoch+1, time()-start_time_sample))
 
-            print('done with this data item')
 
         # set model into evaluation mode
         ddp_model.eval()
@@ -150,12 +154,14 @@ def training_process(rank, world_size, diagnostic_barrier, diagnostic_pipes) :
                     all_training_loss.append(training_loss[jj][ii])
             for ii in range(world_size) :
                 all_validation_loss.append(validation_loss[ii])
-                    
 
-            do_diagnostic_output(training_loss, validation_loss, epoch+1, epoch_len, world_size)
+            do_diagnostic_output(training_loss, validation_loss, epoch+1, len(training_loader), world_size)
 
         if (world_size == 1 and rank == 0) or rank == 1 :
             save_model(ddp_model)
+
+        if rank == 0 :
+            print('Epoch %d finished, took %f seconds'%(epoch+1, time()-start_time_epoch))
 
     # we're done, let's release resources
     cleanup_process()

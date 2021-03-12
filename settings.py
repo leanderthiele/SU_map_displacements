@@ -50,7 +50,7 @@ DATA_PATH = '/projects/QUIJOTE/Leander/SU/ML_fixed_cosmo_DMonly'
 #      used for the workers will be num_workers * num_GPUs
 DATALOADER_ARGS = dict(batch_size=1,
                        shuffle=True,
-                       num_workers=4,
+                       num_workers=1,
                        pin_memory=True,
                        prefetch_factor=1)
 

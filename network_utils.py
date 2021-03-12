@@ -423,5 +423,6 @@ class Level(nn.Module) :
         if self.skip :
             x += self.xskip
             x /= math.sqrt(2)
+            self.xskip = None
         return x
 #}}}

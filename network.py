@@ -35,23 +35,25 @@ class Network(nn.Module) :
                             resolution=settings.NSIDE,
                             density_channels=0)
 
-        block_in_channel_factor = 2
+        block_in_channel_factor = 1
         in_layout1 = Layout(channels=block_in_channel_factor*in_layout.channels,
                             resolution=in_layout.resolution,
                             density_channels=block_in_channel_factor*in_layout.density_channels)
 
         # construct the special blocks
         self.block_in = Block(in_layout, in_layout1)
-        self.block_out = Block(in_layout1, out_layout)
+        # in the output, we don't want any activation function because we want to
+        # map to the entire real line
+        self.block_out = Block(in_layout1, out_layout, activation=False, N_layers=2, residual=False)
 
         # we hold the running layout in this variable as we step through the levels
         tmp_layout = deepcopy(in_layout1)
 
         # construct the levels
         levels = []
-        Nlevels = 4
-        for _ in range(Nlevels) :
-            levels.append(Level(tmp_layout))
+        Nlevels = 3
+        for ii in range(Nlevels) :
+            levels.append(Level(tmp_layout, channel_factor=4 if ii<2 else 2))
             tmp_layout = deepcopy(levels[-1].lower_layout)
         self.levels = nn.ModuleList(levels)
 

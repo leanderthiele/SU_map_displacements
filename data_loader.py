@@ -68,8 +68,6 @@ class Dataset(torch_Dataset) :
         self.rank = rank
         self.world_size = world_size
 
-        print('Dataset.__init__ : found %d samples in dataset %s'%(len(self.run_pairs), str(self.mode)))
-
     def getitem_all(self, idx) :
         # operates on the entire dataset
 
