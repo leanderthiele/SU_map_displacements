@@ -130,7 +130,7 @@ class InputTargetPair :
         # TODO this is hardcoded at the moment, we may want to change that later
         return torch.tensor([self.item2.delta_L, ], dtype=torch.float32)
 
-    def normalize(self, mode) :
+    def normalize(self) :
         # performs normalization according to the supplied functions
         # Needs to be called prior to to_torch()
         self.item1 = self.item1.normalize()

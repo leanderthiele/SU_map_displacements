@@ -26,7 +26,6 @@ class DataModes(Enum) :
             return 'testing'
 
 
-
 class Dataset(torch_Dataset) :
     """
     represents a torch-compatible collection of simulation data

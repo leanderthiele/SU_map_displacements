@@ -62,8 +62,8 @@ def set_filenames() :
     populates the input/output filenames
     """
 #{{{
-    settings.LOSS_FILE = settings.LOSS_FILE.set(os.path.join(settings.DATA_PATH, 'loss_%s.npz'%settings.ID))
-    settings.MODEL_FILE = settings.MODEL_FILE.set(os.path.join(settings.DATA_PATH, 'model_%s.pt'%settings.ID))
+    settings.LOSS_FILE = settings.LOSS_FILE.set(os.path.join(settings.RESULTS_PATH, 'loss_%s.npz'%settings.ID))
+    settings.MODEL_FILE = settings.MODEL_FILE.set(os.path.join(settings.RESULTS_PATH, 'model_%s.pt'%settings.ID))
 #}}}
 
 def check_all_set() :

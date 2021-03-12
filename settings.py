@@ -121,7 +121,7 @@ OPTIMIZER_ARGS = dict(lr=1e-3,
                       amsgrad=False)
 
 # where all data files will go
-DATA_PATH = 'results'
+RESULTS_PATH = 'results'
 
 # where we store the training and validation loss
 LOSS_FILE = ToSet()
