@@ -16,13 +16,12 @@ class ArgParser :
     def populate_parser(self) :
         self.parser.add_argument('--id', nargs='?', default='debug',
                                  help='string that identifies data associated with this run')
-    def __init__(self, mode) :
-        self.mode = mode
-
+    def __init__(self) :
         # construct the argument parser
         self.parser = argparse.ArgumentParser()
         # load the switches we would like to parse
         self.populate_parser()
+
     def parse_and_set(self) :
         args = self.parser.parse_args()
 
