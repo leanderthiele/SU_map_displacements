@@ -95,10 +95,12 @@ DATALOADER_ARGS = dict(batch_size=1,
                        pin_memory=True,
                        prefetch_factor=1)
 
-# These must be consistent between runs!
+# some integer
 DATASET_SHUFFLING_SEED = 137
-NSAMPLES_TESTING = 5
-NSAMPLES_VALIDATION = 10
+
+# these must be consistent between runs
+NSEEDS_TESTING = 2
+NSEEDS_VALIDATION = 8
 
 # how many data augmentations to do per sample per epoch
 # must be <= 48 and divisible by the number of GPUs

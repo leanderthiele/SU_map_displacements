@@ -38,6 +38,21 @@ class Dataset(torch_Dataset) :
 
         seed_dirs = glob(settings.DATA_PATH+'/seed*')
 
+        # to exclude any possible correlation
+        np.random.default_rng(settings.DATASET_SHUFFLING_SEED).shuffle(seed_dirs)
+
+        # choose the simulation seeds that we want to use in this mode
+        self.mode = mode
+        if self.mode is DataModes.TESTING :
+            seed_dirs = seed_dirs[: settings.NSEEDS_TESTING]
+        elif self.mode is DataModes.VALIDATION :
+            seed_dirs = seed_dirs[settings.NSEEDS_TESTING
+                                  : settings.NSEEDS_TESTING + settings.NSEEDS_VALIDATION]
+        elif self.mode is DataModes.TRAINING :
+            seed_dirs = seed_dirs[settings.NSEEDS_TESTING + settings.NSEEDS_VALIDATION :]
+        else :
+            raise RuntimeError('Invalid mode {}'.format(self.mode))
+
         self.run_pairs = []
         for seed_dir in seed_dirs :
 
@@ -53,19 +68,10 @@ class Dataset(torch_Dataset) :
                     self.run_pairs.append(tuple(sorted((run1, run2), key=lambda x : x.delta_L)))
 
         # we want to randomly shuffle the pairs, but so that each instance does the same shuffling
+        # (shuffling removes correlations, for example we don't want to train on simulations
+        #  with the same seed consecutively)
         np.random.default_rng(settings.DATASET_SHUFFLING_SEED).shuffle(self.run_pairs)
         
-        self.mode = mode
-        if self.mode is DataModes.TESTING :
-            self.run_pairs = self.run_pairs[: settings.NSAMPLES_TESTING]
-        elif self.mode is DataModes.VALIDATION :
-            self.run_pairs = self.run_pairs[settings.NSAMPLES_TESTING
-                                            : settings.NSAMPLES_TESTING+settings.NSAMPLES_VALIDATION]
-        elif self.mode is DataModes.TRAINING :
-            self.run_pairs = self.run_pairs[settings.NSAMPLES_TESTING+settings.NSAMPLES_VALIDATION :]
-        else :
-            raise RuntimeError('Invalid mode {}'.format(self.mode))
-
         self.rank = rank
         self.world_size = world_size
 
