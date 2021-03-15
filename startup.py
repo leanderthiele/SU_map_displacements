@@ -5,7 +5,7 @@ import numpy as np
 
 import settings
 from settings import ToSet
-from data_loader import DataModes
+import data_loader
 
 class ArgParser :
     """
@@ -50,7 +50,7 @@ def load_normalizations() :
     settings.DISPLACEMENT_NORMALIZATIONS \
         = settings.DISPLACEMENT_NORMALIZATIONS.set(dict())
     with np.load(settings.NORMALIZATION_FILE) as f :
-        for mode in DataModes :
+        for mode in data_loader.DataModes :
             sigma_displacement, sigma_density, A, B = f[str(mode)]
             settings.DENSITY_NORMALIZATIONS[mode] \
                 = lambda x : A * ( np.log1p(x/sigma_density) - B )
@@ -116,7 +116,7 @@ def main(mode) :
     this is the only function that should be called from this module.
     `mode' refers to the global mode of execution.
     """
-    assert isinstance(mode, DataModes)
+    assert isinstance(mode, data_loader.DataModes)
 
     # tell anyone using the settings module that it
     # is in the correct state

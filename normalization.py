@@ -39,7 +39,7 @@ def normalization(mode) :
 
     for run_pair in dataset.run_pairs :
         print('In normalization.py, first loop, {}'.format(run_pair))
-        item = DataItem(run_pair[0]) # we only want to normalize the input
+        item = DataItem(mode, run_pair[0]) # we only want to normalize the input
         var_displacement += np.var(item.displacement)
         var_density += np.var(item.density)
 
