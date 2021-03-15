@@ -39,13 +39,25 @@ def get_displacement(x1, x2, box_size) :
     """
     Computes the displacement field x2-x1, taking into account
     periodic boundary conditions
+
+    In detail, we have to deal with the following configurations
+    (where B is the box size):
+    
+    1) 0<-----x1-----------------------x2------>B
+       with x2-x1 > +B/2
+        --> answer = x2 - (x1+B) = (x2-x1) - B
+
+    2) 0<-----x2-----------------------x1------>B
+       with x2-x1 < -B/2
+       --> answer = (x2+B) - x1 = (x2-x1) + B
+
+    In all other cases (i.e. |x2-x1| < B/2), we can simply take the signed difference.
     """
-    # TODO check if this function is correct!
 #{{{
     x2 -= x1
 
-    x2[x2 < -0.5*box_size] += box_size
     x2[x2 > +0.5*box_size] -= box_size
+    x2[x2 < -0.5*box_size] += box_size
 
     return x2
 #}}}
