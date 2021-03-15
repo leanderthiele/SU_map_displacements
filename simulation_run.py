@@ -19,6 +19,9 @@ class SimulationRun :
         else :
             assert run_root[-1] == 'p'
 
+    def __repr__(self) :
+        return self.dirname
+
     def snap_fname(self) :
         # returns the filename of the hdf5 particle catalog
         return os.path.join(self.dirname, 'G4',
