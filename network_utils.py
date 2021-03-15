@@ -66,6 +66,9 @@ class Layout :
         self.channels = channels
         self.resolution = resolution
         self.density_channels = density_channels
+
+    def __repr__(self) :
+        return '{ channels = %d, resolution = %d, density_channels = %d }'%(self.channels, self.resolution, self.density_channels)
 #}}}
 
 class Activation_BROKEN(nn.Module) :

@@ -58,6 +58,17 @@ def setup_process(rank, world_size) :
     torch.cuda.set_device(rank)
 #}}}
 
+def is_output_responsible(rank, world_size) :
+#{{{
+    # we don't want to store more data than really necessary on the 0th rank
+    # which has to collect all the gradients already
+
+    if world_size == 1 :
+        return rank == 0
+    else :
+        return rank == 1
+#}}}
+
 def cleanup_process() :
     # to be called at the end of a child process
 #{{{
@@ -84,6 +95,10 @@ def training_process(rank, world_size) :
 
     training_loader = DataLoader(DataModes.TRAINING, rank, world_size)
     validation_loader = DataLoader(DataModes.VALIDATION, rank, world_size)
+
+    if is_output_responsible(rank, world_size) :
+        all_epochs_training_loss = np.empty(0)
+        all_epochs_validation_loss = np.empty(0)
 
     for epoch in range(settings.EPOCHS) :
         
@@ -155,14 +170,19 @@ def training_process(rank, world_size) :
         torch.distributed.all_gather_object(all_training_loss, training_loss)
         torch.distributed.all_gather_object(all_validation_loss, validation_loss)
 
-        if rank == 0 :
+        if is_output_responsible(rank, world_size) :
             # interleave the training loss arrays so the losses are temporally correctly ordered
             all_training_loss = np.vstack(all_training_loss).reshape((-1,), order='F')
             all_validation_loss = np.array(all_validation_loss)
-            do_diagnostic_output(all_training_loss, all_validation_loss,
+
+            all_epochs_training_loss = np.concatenate((all_epochs_training_loss,
+                                                       all_training_loss))
+            all_epochs_validation_loss = np.concatenate((all_epochs_validation_loss,
+                                                         all_validation_loss))
+
+            do_diagnostic_output(all_epochs_training_loss, all_epochs_validation_loss,
                                  epoch+1, len(training_loader), world_size)
 
-        if (world_size == 1 and rank == 0) or rank == 1 :
             save_model(ddp_model)
 
         if rank == 0 :
