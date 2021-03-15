@@ -48,10 +48,14 @@ class DataItem :
         # (channel is the 3d dimensionality)
         self.displacement = np.moveaxis(self.displacement, -1, 0)
 
+        self.tensor = None
+
     def normalize(self) :
         # cannot be called after to_torch()
         # TODO in principle, we could think about using the same normalization function
         #      everywhere here. Then it would simply be a collection of magic numbers.
+
+        assert self.tensor is None
 
         if settings.USE_DENSITY :
             self.density = settings.DENSITY_NORMALIZATIONS[self.mode](self.density)
@@ -76,16 +80,21 @@ class DataItem :
         # permutation is a permutation of [0,1,2] 
 
         # when transposing, we need to preserve the channel dimension
-        self.displacement = np.transpose(self.displacement, axes=[0,]+[ii+1 for ii in permutation])
+        permutationp1 = [0,] + [ii+1 for ii in permutation]
+        self.displacement = np.transpose(self.displacement, axes=permutationp1)
         if self.density is not None :
-            self.density = np.transpose(self.density, axes=[0,]+[ii+1 for ii in permutation])
+            self.density = np.transpose(self.density, axes=permutationp1)
 
         # now we need to interchange the channels (i.e. displacement directions) accordingly,
         self.displacement = self.displacement[permutation, ...]
 
     def augment_data(self, r) :
+        # cannot be called after to_torch()
         # performs the data augmentation.
         # r should be some integer
+
+        assert self.tensor is None
+
         r %= 48
         r1 = r // 6 # this one labels the 8 reflections
         r2 = r % 6  # this one labels the 6 transpositions
@@ -103,9 +112,7 @@ class DataItem :
         return self
 
     def to_torch(self) :
-        # note that this function cannot be called before augment_data
-        # TODO do we need to unsqueeze the batch dimension here???
-        #      -- I don't think so! pytorch will tell us
+        # call this method right at the end, after augmentation and normalization
         if self.density is None :
             self.tensor = self.displacement
         else :

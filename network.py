@@ -42,6 +42,7 @@ class Network(nn.Module) :
 
         # construct the special blocks
         self.block_in = Block(in_layout, in_layout1)
+
         # in the output, we don't want any activation function because we want to
         # map to the entire real line
         self.block_out = Block(in_layout1, out_layout, activation=False, N_layers=2, residual=False)

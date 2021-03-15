@@ -19,6 +19,7 @@ class ArgParser :
     def __init__(self) :
         # construct the argument parser
         self.parser = argparse.ArgumentParser()
+
         # load the switches we would like to parse
         self.populate_parser()
 

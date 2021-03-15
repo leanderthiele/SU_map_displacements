@@ -44,14 +44,14 @@ class Dataset(torch_Dataset) :
         # choose the simulation seeds that we want to use in this mode
         self.mode = mode
         if self.mode is DataModes.TESTING :
-            seed_dirs = seed_dirs[: settings.NSEEDS_TESTING]
+            seed_indices = slice(0, settings.NSEEDS_TESTING)
         elif self.mode is DataModes.VALIDATION :
-            seed_dirs = seed_dirs[settings.NSEEDS_TESTING
-                                  : settings.NSEEDS_TESTING + settings.NSEEDS_VALIDATION]
+            seed_indices = slice(settings.NSEEDS_TESTING, settings.NSEEDS_TESTING+settings.NSEEDS_VALIDATION)
         elif self.mode is DataModes.TRAINING :
-            seed_dirs = seed_dirs[settings.NSEEDS_TESTING + settings.NSEEDS_VALIDATION :]
+            seed_indices = slice(settings.NSEEDS_TESTING+settings.NSEEDS_VALIDATION, None)
         else :
             raise RuntimeError('Invalid mode {}'.format(self.mode))
+        seed_dirs = seed_dirs[seed_indices]
 
         self.run_pairs = []
         for seed_dir in seed_dirs :
@@ -60,6 +60,7 @@ class Dataset(torch_Dataset) :
 
             for i1, run_fname1 in enumerate(run_fnames) :
                 run1 = SimulationRun(run_fname1)
+
                 if settings.ONLY_FROM_ZERO and not run1.is_zero() :
                     continue
 

@@ -25,6 +25,8 @@ def do_diagnostic_output(training_loss, validation_loss, Nepochs, epoch_len, wor
 
 def save_model(model) :
     # this function will only be called from the rank=0 process
+    # TODO we probably want to store other data as well, most importantly the optimizer state dict
+    #      other things we can put in are the loss curves
 #{{{
     torch.save(model.state_dict(), settings.MODEL_FILE)
 #}}}
