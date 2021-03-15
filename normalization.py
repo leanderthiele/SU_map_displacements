@@ -55,7 +55,7 @@ def normalization(mode) :
     avg_logdensity = 0.0
 
     for run_pair in dataset.run_pairs :
-        print('In normalization.py, second loop, %s'str(run_pair[0]))
+        print('In normalization.py, second loop, %s'%str(run_pair[0]))
         item = DataItem(mode, run_pair[0])
         logdensity = np.log1p( item.density / DENSITY_FACTOR / math.sqrt(var_density) )
         var_logdensity += np.sum(logdensity**2) / logdensity.size
