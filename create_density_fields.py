@@ -3,7 +3,7 @@
 
 from glob import glob
 from os.path import splitext
-import sys.argv
+from sys import argv
 from os import system
 
 import numpy as np
@@ -16,8 +16,8 @@ import settings
 PATH = settings.DATA_PATH+'/seed*'
 CPU_ONLY = False
 
-RANK = int(sys.argv[1])
-WORLD_SIZE = int(sys.argv[2])
+RANK = int(argv[1])
+WORLD_SIZE = int(argv[2])
 
 def get_out_fname(fname) :
     # converts a filename .../snap_+++.hdf5 into a .npz filename for the density field
