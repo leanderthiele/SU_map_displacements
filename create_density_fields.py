@@ -1,5 +1,9 @@
+# call as python create_density_fields.py RANK WORLD_SIZE
+
+
 from glob import glob
 from os.path import splitext
+import sys.argv
 from os import system
 
 import numpy as np
@@ -12,13 +16,16 @@ import settings
 PATH = settings.DATA_PATH+'/seed*'
 CPU_ONLY = False
 
+RANK = int(sys.argv[1])
+WORLD_SIZE = int(sys.argv[2])
+
 def get_out_fname(fname) :
     # converts a filename .../snap_+++.hdf5 into a .npz filename for the density field
     directory = splitext(fname)[0]+'_postprocessing/'
     system('mkdir -p '+directory)
     return directory + 'density_%d.npz'%settings.NSIDE
 
-FNAMES = glob(PATH+'/**/snap_%s.hdf5'%('[0-9]' * 3), recursive=True)
+FNAMES = glob(PATH+'/**/snap_%s.hdf5'%('[0-9]' * 3), recursive=True)[RANK::WORLD_SIZE]
 
 with Voxelize(use_gpu=not CPU_ONLY) as v :
 
