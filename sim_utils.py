@@ -44,7 +44,7 @@ def get_displacement(x1, x2, box_size) :
 #{{{
     x2 -= x1
 
-    x2[x2 < -0.5*box_size] *= -1.0
+    x2[x2 < -0.5*box_size] += box_size
     x2[x2 > +0.5*box_size] -= box_size
 
     return x2
