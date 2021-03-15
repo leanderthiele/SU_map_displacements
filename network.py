@@ -78,6 +78,7 @@ class Network(nn.Module) :
             x = l.expand(x, s)
 
         x = self.block_out(x, s)
+        x = self.collapse(x, s)
 
         return x
 #}}}

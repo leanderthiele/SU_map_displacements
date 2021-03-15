@@ -1,7 +1,9 @@
 import os.path
+from glob import glob
 import numpy as np
 
 import settings
+import data_loader # import whole module to avoid circular import
 
 class SimulationRun :
     """
@@ -56,11 +58,11 @@ def get_runs(mode) :
     np.random.default_rng(settings.DATASET_SHUFFLING_SEED).shuffle(seed_dirs)
 
     # choose the simulation seeds that we want to use in this mode
-    if mode is DataModes.TESTING :
+    if mode is data_loader.DataModes.TESTING :
         seed_indices = slice(0, settings.NSEEDS_TESTING)
-    elif mode is DataModes.VALIDATION :
+    elif mode is data_loader.DataModes.VALIDATION :
         seed_indices = slice(settings.NSEEDS_TESTING, settings.NSEEDS_TESTING+settings.NSEEDS_VALIDATION)
-    elif mode is DataModes.TRAINING :
+    elif mode is data_loader.DataModes.TRAINING :
         seed_indices = slice(settings.NSEEDS_TESTING+settings.NSEEDS_VALIDATION, None)
     else :
         raise RuntimeError('Invalid mode {}'.format(mode))
