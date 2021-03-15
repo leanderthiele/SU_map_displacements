@@ -1,4 +1,5 @@
 import os.path
+import numpy as np
 
 import settings
 
@@ -41,4 +42,49 @@ class SimulationRun :
     def is_zero(self) :
         # returns whether this is a zero delta_L run
         return abs(self.delta_L) < 1e-10
+#}}}
+
+
+def get_runs(mode) :
+    """
+    returns a list of pairs of SimulationRun instances, corresponding to the current mode
+    """
+#{{{
+    seed_dirs = glob(settings.DATA_PATH+'/seed*')
+
+    # to exclude any possible correlation
+    np.random.default_rng(settings.DATASET_SHUFFLING_SEED).shuffle(seed_dirs)
+
+    # choose the simulation seeds that we want to use in this mode
+    if mode is DataModes.TESTING :
+        seed_indices = slice(0, settings.NSEEDS_TESTING)
+    elif mode is DataModes.VALIDATION :
+        seed_indices = slice(settings.NSEEDS_TESTING, settings.NSEEDS_TESTING+settings.NSEEDS_VALIDATION)
+    elif mode is DataModes.TRAINING :
+        seed_indices = slice(settings.NSEEDS_TESTING+settings.NSEEDS_VALIDATION, None)
+    else :
+        raise RuntimeError('Invalid mode {}'.format(mode))
+    seed_dirs = seed_dirs[seed_indices]
+
+    run_pairs = []
+    for seed_dir in seed_dirs :
+
+        run_fnames = glob(seed_dir+'/*[m,p]')
+
+        for i1, run_fname1 in enumerate(run_fnames) :
+            run1 = SimulationRun(run_fname1)
+
+            if settings.ONLY_FROM_ZERO and not run1.is_zero() :
+                continue
+
+            for i2, run_fname2 in enumerate(run_fnames[i1+1:]) :
+                run2 = SimulationRun(run_fname2)
+                run_pairs.append(tuple(sorted((run1, run2), key=lambda x : x.delta_L)))
+
+    # we want to randomly shuffle the pairs, but so that each instance does the same shuffling
+    # (shuffling removes correlations, for example we don't want to train on simulations
+    #  with the same seed consecutively)
+    np.random.default_rng(settings.DATASET_SHUFFLING_SEED).shuffle(run_pairs)
+
+    return run_pairs
 #}}}

@@ -49,17 +49,25 @@ class DataItem :
         self.displacement = np.moveaxis(self.displacement, -1, 0)
 
         self.tensor = None
+        self.is_normalized = False
+        self.is_augmented = False
 
     def normalize(self) :
         # cannot be called after to_torch()
         # TODO in principle, we could think about using the same normalization function
         #      everywhere here. Then it would simply be a collection of magic numbers.
+        # TODO we also need to normalize the overdensity
 
         assert self.tensor is None
+        assert not self.is_normalized
 
         if settings.USE_DENSITY :
             self.density = settings.DENSITY_NORMALIZATIONS[self.mode](self.density)
         self.displacement = settings.DISPLACEMENT_NORMALIZATIONS[self.mode](self.displacement)
+
+        self.delta_L = settings.DELTA_L_NORMALIZATIONS[self.mode](self.delta_L)
+
+        self.is_normalized = True
 
         return self
 
@@ -94,6 +102,7 @@ class DataItem :
         # r should be some integer
 
         assert self.tensor is None
+        assert not self.is_augmented
 
         r %= 48
         r1 = r // 6 # this one labels the 8 reflections
@@ -109,10 +118,16 @@ class DataItem :
         if r2 != 0 :
             self.__transpose(transpose_permutation)
 
+        self.is_augmented = True
+
         return self
 
     def to_torch(self) :
         # call this method right at the end, after augmentation and normalization
+
+        assert self.is_normalized
+        assert self.is_augmented
+
         if self.density is None :
             self.tensor = self.displacement
         else :
@@ -135,6 +150,9 @@ class InputTargetPair :
     def styles(self) :
         # returns the styles describing this InputTargetPair as a torch tensor
         # TODO this is hardcoded at the moment, we may want to change that later
+
+        assert self.item2.is_normalized
+
         return torch.tensor([self.item2.delta_L, ], dtype=torch.float32)
 
     def normalize(self) :

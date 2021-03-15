@@ -109,6 +109,7 @@ NORMALIZATION_FILE = 'normalization_128.npz'
 # dicts that store lambda functions for the normalization
 DENSITY_NORMALIZATIONS = ToSet()
 DISPLACEMENT_NORMALIZATIONS = ToSet()
+DELTA_L_NORMALIZATIONS = ToSet()
 
 # set this to a high number and train until time is up
 EPOCHS = 1000

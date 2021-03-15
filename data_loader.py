@@ -10,7 +10,7 @@ from torch.utils.data import DataLoader as torch_DataLoader
 import settings
 import startup
 import sim_utils
-from simulation_run import SimulationRun
+from simulation_run import get_runs
 from data_item import DataItem, InputTargetPair
 
 class DataModes(Enum) :
@@ -36,45 +36,11 @@ class Dataset(torch_Dataset) :
         # populates self.run_pairs, which contains pairs of __Run instances,
         # each pair sorted in such a way that the lower delta_L comes first
 
-        seed_dirs = glob(settings.DATA_PATH+'/seed*')
-
-        # to exclude any possible correlation
-        np.random.default_rng(settings.DATASET_SHUFFLING_SEED).shuffle(seed_dirs)
-
-        # choose the simulation seeds that we want to use in this mode
-        self.mode = mode
-        if self.mode is DataModes.TESTING :
-            seed_indices = slice(0, settings.NSEEDS_TESTING)
-        elif self.mode is DataModes.VALIDATION :
-            seed_indices = slice(settings.NSEEDS_TESTING, settings.NSEEDS_TESTING+settings.NSEEDS_VALIDATION)
-        elif self.mode is DataModes.TRAINING :
-            seed_indices = slice(settings.NSEEDS_TESTING+settings.NSEEDS_VALIDATION, None)
-        else :
-            raise RuntimeError('Invalid mode {}'.format(self.mode))
-        seed_dirs = seed_dirs[seed_indices]
-
-        self.run_pairs = []
-        for seed_dir in seed_dirs :
-
-            run_fnames = glob(seed_dir+'/*[m,p]')
-
-            for i1, run_fname1 in enumerate(run_fnames) :
-                run1 = SimulationRun(run_fname1)
-
-                if settings.ONLY_FROM_ZERO and not run1.is_zero() :
-                    continue
-
-                for i2, run_fname2 in enumerate(run_fnames[i1+1:]) :
-                    run2 = SimulationRun(run_fname2)
-                    self.run_pairs.append(tuple(sorted((run1, run2), key=lambda x : x.delta_L)))
-
-        # we want to randomly shuffle the pairs, but so that each instance does the same shuffling
-        # (shuffling removes correlations, for example we don't want to train on simulations
-        #  with the same seed consecutively)
-        np.random.default_rng(settings.DATASET_SHUFFLING_SEED).shuffle(self.run_pairs)
-        
+        self.mode = mode 
         self.rank = rank
         self.world_size = world_size
+
+        self.run_pairs = get_runs(self.mode)
 
     def getitem_all(self, idx) :
         # operates on the entire dataset
