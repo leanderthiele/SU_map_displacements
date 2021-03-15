@@ -56,22 +56,14 @@ USE_DENSITY = True
 H_UNITS = False
 
 # specify the redshift that we're working at using this switch
-# The redshifts are :
-#           [0] z = 126
-#           [1] z = 3
-#           [2] z = 2
-#           [3] z = 1
-#           [4] z = 0.5
-#           [5] z = 0
-# FIXME this will be different with the 128 runs
 # TODO we can generalize this into a list and map between redshifts.
 #      In that case, redshift has to be an additional style
-SNAP_IDX = 5
+SNAP_IDX = 14
 
 # particles and cells per side
-NSIDE = 256
+NSIDE = 128
 
-# sidelength of the glass files
+# sidelength of the glass files -- we need this to reorder the particles properly
 GLASS_SIDE = 64
 
 # where we find the simulations
@@ -85,7 +77,7 @@ GLASS_SIDE = 64
 #            density_<NSIDE>.npz/
 #              'density' (in h-units, np.float32)
 #              'h' (hubble parameter)
-DATA_PATH = '/projects/QUIJOTE/Leander/SU/ML_fixed_cosmo_DMonly'
+DATA_PATH = '/projects/QUIJOTE/Leander/SU/ML_fixed_cosmo_DMonly_128'
 
 # NOTE since we are using distributed training, the actual number of CPUs
 #      used for the workers will be num_workers * num_GPUs
@@ -112,13 +104,13 @@ N_AUGMENTATIONS = 4
 NSTYLES = 1
 
 # where we store the parameters required for the normalization functions 
-NORMALIZATION_FILE = 'normalization.npz'
+NORMALIZATION_FILE = 'normalization_128.npz'
 
 # dicts that store lambda functions for the normalization
 DENSITY_NORMALIZATIONS = ToSet()
 DISPLACEMENT_NORMALIZATIONS = ToSet()
 
-# set this to a high number (but not too high since we allocate some buffers proportionally)
+# set this to a high number and train until time is up
 EPOCHS = 1000
 
 # note that these are somewhat dependent on the specific optimizer chosen in train_utils.py
@@ -128,7 +120,7 @@ OPTIMIZER_ARGS = dict(lr=1e-3,
                       weight_decay=0.0, # L2 penalty
                       amsgrad=False)
 
-# where all data files will go
+# where all data products will go
 RESULTS_PATH = 'results'
 
 # where we store the training and validation loss

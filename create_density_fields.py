@@ -7,16 +7,16 @@ import h5py
 
 from voxelize import Voxelize
 
-BOX_N = 256
+import settings
 
-PATH = '/projects/QUIJOTE/Leander/SU/ML_fixed_cosmo_DMonly/seed*'
+PATH = settings.DATA_PATH+'/seed*'
 CPU_ONLY = False
 
 def get_out_fname(fname) :
     # converts a filename .../snap_+++.hdf5 into a .npz filename for the density field
     directory = splitext(fname)[0]+'_postprocessing/'
     system('mkdir -p '+directory)
-    return directory + 'density_%d.npz'%BOX_N
+    return directory + 'density_%d.npz'%settings.NSIDE
 
 FNAMES = glob(PATH+'/**/snap_%s.hdf5'%('[0-9]' * 3), recursive=True)
 
@@ -33,7 +33,7 @@ with Voxelize(use_gpu=not CPU_ONLY) as v :
             radii = f['PartType1/SubfindHsml'][...] / np.cbrt(DesNumNgb+1)
             density = f['PartType1/SubfindDensity'][...]
 
-        box = v(BoxSize, coordinates, radii, density, BOX_N)
+        box = v(BoxSize, coordinates, radii, density, settings.NSIDE)
 
         out_fname = get_out_fname(fname)
         print('Writing file %s ...'%out_fname)

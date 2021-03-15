@@ -75,4 +75,5 @@ if __name__ == '__main__' :
     norms = {}
     for mode in DataModes :
         norms[str(mode)] = np.array(normalization(mode))
-    np.savez(settings.NORMALIZATION_FILE, **norms, README=normalization.__doc__)
+    np.savez(settings.NORMALIZATION_FILE, **norms,
+             README=normalization.__doc__+'\n\nThis normalization is for files in '+settings.DATA_PATH)
