@@ -98,11 +98,16 @@ DATA_PATH = '/projects/QUIJOTE/Leander/SU/ML_fixed_cosmo_DMonly_128'
 
 BATCH_SIZE = 1
 
-# NOTE since we are using distributed training, the actual number of CPUs
-#      used for the workers will be num_workers * num_GPUs
+# Note: since we are using distributed training, the actual number of CPUs
+#       used for the workers will be num_workers * num_GPUs
+# TODO somehow using num_workers > 0 here establishes one CUDA process
+#      per worker (i.e. num_GPUs * num_workers) on the 0th device.
+#      Each needs about 600M, which limits our options quite a bit.
+#      However, not having workers degrades GPU utilization
+#      I saw something on the internet about this, we should fix this!
 DATALOADER_ARGS = dict(batch_size=1,
                        shuffle=True,
-                       num_workers=2,
+                       num_workers=1,
                        pin_memory=True,
                        prefetch_factor=1)
 

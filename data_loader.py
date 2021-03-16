@@ -161,6 +161,10 @@ class WorkerPool :
     def init_worker(self, worker_id) :
         # use this method as worker_init_fn
 
+        # until we figure out why each worker gets a CUDA context,
+        # we should distribute them equally across the devices
+        torch.cuda.set_device(self.rank)
+
         # initialize the random seed for this process
         # we don't use just the worker_id but also the rank
         # so we truly get different random numbers in all workers,

@@ -92,5 +92,5 @@ class Network(nn.Module) :
 
         # we need to convert all batch normalizations into synchronized ones!
         return DistributedDataParallel(nn.SyncBatchNorm.convert_sync_batchnorm(self),
-                                       device_idx=[rank])
+                                       device_ids=[rank])
 #}}}

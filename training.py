@@ -57,8 +57,6 @@ def setup_process(rank, world_size) :
 
     torch.distributed.init_process_group('nccl', rank=rank, world_size=world_size)
 
-    # note that we only call this because the documentation for all_gather_object says we need to
-    # when using NCCL
     torch.cuda.set_device(rank)
 #}}}
 
