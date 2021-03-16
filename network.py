@@ -4,7 +4,7 @@ import torch
 import torch.nn as nn
 
 import settings
-from network_utils import Layout, Block, Level
+from network_utils import Activations, Layout, Block, Level
 
 
 class Network(nn.Module) :
@@ -47,7 +47,8 @@ class Network(nn.Module) :
 
         # in the output, we don't want any activation function because we want to
         # map to the entire real line
-        self.collapse = Block(in_layout1, out_layout, activation=False, N_layers=2, residual=False)
+        self.collapse = Block(in_layout1, out_layout,
+                              activation=Activations.OUTPUT, N_layers=2, residual=False)
 
         # we hold the running layout in this variable as we step through the levels
         tmp_layout = deepcopy(in_layout1)

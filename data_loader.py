@@ -58,8 +58,8 @@ class Dataset(torch_Dataset) :
 
         return InputTargetPair(DataItem(self.mode, self.run_pairs[run_idx][0]),
                                DataItem(self.mode, self.run_pairs[run_idx][1])) \
-                   .normalize() \
                    .augment_data(augmentation_index) \
+                   .normalize() \
                    .to_torch()
 
     def __getitem__(self, idx) :
@@ -127,6 +127,10 @@ class Batch :
             self.inputs[ii, ...] = data_item.item1.tensor
             self.targets[ii, ...] = data_item.item2.tensor[offset:, ...]
             self.styles[ii, ...] = data_item.styles()
+
+        # sanity check
+        assert torch.min(self.targets).item() >= -1.0
+        assert torch.max(self.targets).item() <= +1.0
 
         return self
 

@@ -55,6 +55,10 @@ USE_DENSITY = True
 # whether we want to work in little h-units internally
 H_UNITS = False
 
+# should be somewhat larger than the largest box size that will be encountered
+# (precise value is not super important)
+MAX_BOX_SIZE = 25000 / 0.6
+
 # specify the redshift that we're working at using this switch
 # TODO we can generalize this into a list and map between redshifts.
 #      In that case, redshift has to be an additional style

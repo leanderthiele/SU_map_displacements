@@ -52,7 +52,7 @@ class DataItem :
         self.is_normalized = False
         self.is_augmented = False
 
-    def normalize(self) :
+    def normalize_for_input(self) :
         # cannot be called after to_torch()
         # TODO in principle, we could think about using the same normalization function
         #      everywhere here. Then it would simply be a collection of magic numbers.
@@ -70,6 +70,19 @@ class DataItem :
         self.is_normalized = True
 
         return self
+
+    def normalize_for_target(self) :
+        # cannot be called after to_torch()
+        
+        assert self.tensor is None
+        assert not self.is_normalized
+
+        # normalize such that the output is in the range [ -1, 1 ]
+        self.displacement /= 0.5 * settings.MAX_BOX_SIZE
+        
+        # Note that delta_L is actually used as an input, but this structure
+        # should be clear
+        self.delta_L = settings.DELTA_L_NORMALIZATIONS[self.mode](self.delta_L)
 
     def __reflect(self, indices) :
         # indices labels the axes that should be reflected
@@ -97,11 +110,12 @@ class DataItem :
         self.displacement = self.displacement[permutation, ...]
 
     def augment_data(self, r) :
-        # cannot be called after to_torch()
+        # cannot be called after to_torch() or normalize
         # performs the data augmentation.
         # r should be some integer
 
         assert self.tensor is None
+        assert not self.is_normalized
         assert not self.is_augmented
 
         r %= 48
@@ -168,6 +182,7 @@ class InputTargetPair :
         # because we need the transformations to be consistent between input and target
         # rand_int should be a callable that produces a random integer,
         # or a random integer
+        
         if rand_int is None :
             r = np.random.default_rng(id(self) % 2**32).integers(2**32)
         elif callable(rand_int) :

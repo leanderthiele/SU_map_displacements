@@ -100,6 +100,9 @@ def training_process(rank, world_size) :
         all_epochs_training_loss = np.empty(0)
         all_epochs_validation_loss = np.empty(0)
 
+    global_skip_backward = False
+    skip_backward_list = [False, ] * world_size
+
     for epoch in range(settings.EPOCHS) :
         
         if rank == 0 :
@@ -125,7 +128,12 @@ def training_process(rank, world_size) :
             inputs, targets, styles = data.get_on_device()
 
             # do the forward pass and compute loss
-            optimizer.zero_grad()
+
+            if not global_skip_backward :
+                # we did not encounter infinity/nan during the last forward pass
+                # thus, the optimizer.step method has been called and we can reset
+                # the gradients
+                optimizer.zero_grad()
 
             prediction = ddp_model(inputs, styles)
 
@@ -134,10 +142,27 @@ def training_process(rank, world_size) :
             # update the loss storage
             training_loss[t] = this_training_loss.item()
 
-            # update weights -- this is an implicit synchronization point!
-            this_training_loss.backward()
+            # check whether we need to disable synchronization because
+            # at least one process had a problem
+            this_skip_backward = not np.isfinite(this_training_loss.item())
+            torch.distributed.all_gather_object(skip_backward_list, this_skip_backward)
+            global_skip_backward = any(skip_backward_list)
 
-            optimizer.step()
+            if not global_skip_backward :
+                # update gradients synchronously -- this is an implicit synchronization point!
+                this_training_loss.backward()
+            else :
+                if this_skip_backward :
+                    # we encountered infinity/nan and should throw this loss away
+                    print('encountered invalid loss in rank %d'%rank)
+                else :
+                    # update gradients asynchronously in those processes that did not have a problem
+                    with ddp_model.no_sync() :
+                        this_training_loss.backward()
+
+            if not global_skip_backward :
+                # each process sees the same gradients and can therefore do the same weight updates
+                optimizer.step()
             
             if rank == 0 :
                 print('\tSample %.3d / %d finished in epoch %d, '\

@@ -25,6 +25,16 @@ class GroupModes(Enum) :
                     # assumes that each direction corresponds to the same number of channels
                     # and the density field, if present, also has this number of channels
 
+class Activations(Enum) :
+    """
+    which activation function to apply
+    """
+    STANDARD = auto() # for the StandardActivation class below
+    NONE = auto() # apply no activation
+    OUTPUT = auto() # apply an activation suitable for the output
+                    # this will apply STANDARD activations for all
+                    # except the very last layer
+
 def crop(x, num=1) :
     """
     removes num rows on each side in each dimension of x
@@ -100,7 +110,7 @@ class Activation_BROKEN(nn.Module) :
         return x
 #}}}
 
-class Activation(nn.Hardshrink) :
+class StandardActivation(nn.Hardshrink) :
     """
     the parent class applied to all channels.
     Needs to respect sign symmetry for the displacement channels.
@@ -108,6 +118,18 @@ class Activation(nn.Hardshrink) :
     """
 #{{{
     def __init__(self, *args) :
+        super().__init__()
+#}}}
+
+class OutputActivation(nn.Tanh) :
+    """
+    suitable for the output of the network, which should fall in the range [-1, 1]
+
+    Note that we choose a relatively expensive function here,
+    but since it is applied only once in the entire network it is completely fine.
+    """
+#{{{
+    def __init__(self) :
         super().__init__()
 #}}}
 
@@ -145,13 +167,13 @@ class Conv3d(nn.Module) :
                              if self.resample is Resample.UP
                              else F.conv3d)(x, w, bias=b, stride=stride, **kwargs)
         else :
-            self.conv_ = (nn.ConvTranspose3d
-                          if self.resample is Resample.UP
-                          else nn.Conv3d)(in_layout.channels, out_layout.channels, 3, stride=stride,
-                                          groups=get_groups(group_mode, in_layout, out_layout),
-                                          bias=True if bias is None else bias)
-            self.conv = lambda x, w, b, **kwargs : \
-                             self.conv_(x)
+            conv = (nn.ConvTranspose3d
+                    if self.resample is Resample.UP
+                    else nn.Conv3d)(in_layout.channels, out_layout.channels, 3, stride=stride,
+                                    groups=get_groups(group_mode, in_layout, out_layout),
+                                    bias=True if bias is None else bias)
+            self.conv = lambda x, w, b, c=conv, **kwargs : \
+                             c(x)
 
     def forward(self, x, w=None, b=None, **kwargs) :
         # note that w, b, and kwargs are only used for the external_weight case
@@ -267,12 +289,14 @@ class Layer(nn.Module) :
     """
 #{{{
     def __init__(self, in_layout, out_layout,
-                       activation=True, batch_norm=False, dropout=False, styles=False, bias=True,
+                       activation=Activations.STANDARD, batch_norm=False, dropout=False, styles=False, bias=True,
                        group_mode=GroupModes.ALL, # do not change if styles=True
                        batch_norm_kw={}) :
         super().__init__()
 
-        self.activation = (nn.Identity if not activation else Activation)(out_layout)
+        self.activation = (nn.Identity if activation is Activations.NONE
+                           else StandardActivation if activation is Activations.STANDARD
+                           else OutputActivation if activation is Activations.OUTPUT)(out_layout)
         self.batch_norm = (nn.Identity if not batch_norm else nn.BatchNorm3d) \
                                 (**batch_norm_kw)
         self.dropout    = (nn.Identity if not dropout else nn.Dropout3d) \
@@ -284,7 +308,8 @@ class Layer(nn.Module) :
                  else Resample.UP if 2*in_layout.resolution == out_layout.resolution \
                  else Resample.DOWN if in_layout.resolution == 2 * out_layout.resolution \
                  else None
-        assert resample is not None, "Incompatible resolutions in=%d out=%d"%(in_layout.resolution, out_layout.resolution)
+        assert resample is not None, "Incompatible resolutions in=%d out=%d"%(in_layout.resolution,
+                                                                              out_layout.resolution)
         common_conv_kwargs = dict(in_layout=in_layout, out_layout=out_layout,
                                   resample=resample, bias=bias)
 
@@ -331,15 +356,15 @@ class Block(nn.Module) :
 #{{{
     def __init__(self, in_layout, out_layout,
                        N_layers=4, residual=True,
-                       activation=True, batch_norm=False, dropout=False, bias=True,
+                       activation=Activations.STANDARD, batch_norm=False, dropout=False, bias=True,
                        batch_norm_kw={}) :
         super().__init__()
 
         self.residual = residual
 
         assert(N_layers > 1)
-        common_layer_kwargs = dict(activation=activation, batch_norm=batch_norm,
-                                   dropout=dropout, bias=bias, batch_norm_kw=batch_norm_kw)
+        common_layer_kwargs = dict(batch_norm=batch_norm, dropout=dropout,
+                                   bias=bias, batch_norm_kw=batch_norm_kw)
 
         if out_layout.density_channels < 0 :
             out_layout.density_channels = in_layout.density_channels * out_layout.channels // in_layout.channels
@@ -350,6 +375,10 @@ class Block(nn.Module) :
                                 out_layout=out_layout,
                                 styles=False if ii==0 else settings.NSTYLES,
                                 group_mode=GroupModes.SINGLE if ii==0 else GroupModes.ALL,
+                                activation=activation \
+                                           if activation is not Activations.OUTPUT or ii != N_layers-1 \
+                                           else \
+                                           Activations.OUTPUT,
                                 **common_layer_kwargs))
         self.layers = nn.ModuleList(layers)
 

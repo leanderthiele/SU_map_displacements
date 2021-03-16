@@ -46,6 +46,10 @@ def load_normalizations() :
     populates the normalization function dicts
     """
 #{{{
+    # note that we have to *capture* in the lambda,
+    # otherwise we'll always get the same output
+    # regardless of mode
+
     settings.DENSITY_NORMALIZATIONS \
         = settings.DENSITY_NORMALIZATIONS.set(dict())
     settings.DISPLACEMENT_NORMALIZATIONS \
@@ -54,9 +58,9 @@ def load_normalizations() :
         for mode in data_loader.DataModes :
             sigma_displacement, sigma_density, A, B = f[str(mode)]
             settings.DENSITY_NORMALIZATIONS[mode] \
-                = lambda x : A * ( np.log1p(x/sigma_density) - B )
+                = lambda x, s=sigma_density, a=A, b=B : a * ( np.log1p(x/s) - b )
             settings.DISPLACEMENT_NORMALIZATIONS[mode] \
-                = lambda x : x / sigma_displacement
+                = lambda x, s=sigma_displacement : x/s
 
     settings.DELTA_L_NORMALIZATIONS \
         = settings.DELTA_L_NORMALIZATIONS.set(dict())
@@ -66,7 +70,7 @@ def load_normalizations() :
         mean = np.mean(delta_L_arr)
         stddev = np.std(delta_L_arr)
         settings.DELTA_L_NORMALIZATIONS[mode] \
-            = lambda x : (x-mean) / stddev
+            = lambda x, m=mean, s=stddev : (x-m) / s
 #}}}
 
 def set_filenames() :
