@@ -24,6 +24,7 @@ def do_diagnostic_output(training_loss, validation_loss, Nepochs, epoch_len, wor
                                  validation_loss=np.sqrt(validation_loss))
 #}}}
 
+
 def save_model(model) :
     # this function will only be called from the rank=0 process
     # TODO we probably want to store other data as well, most importantly the optimizer state dict
@@ -31,6 +32,7 @@ def save_model(model) :
 #{{{
     torch.save(model.state_dict(), settings.MODEL_FILE)
 #}}}
+
 
 def load_model(model, rank) :
     # this function will be called from any process, we need to make sure we map
@@ -41,6 +43,7 @@ def load_model(model, rank) :
     map_location = { 'cuda:0' : 'cuda:%d'%rank }
     model.load_state_dict(torch.load(settings.MODEL_FILE, map_location=map_location))
 #}}}
+
 
 def setup_process(rank, world_size) :
     # to be called at the beginning of a child process
@@ -59,6 +62,7 @@ def setup_process(rank, world_size) :
     torch.cuda.set_device(rank)
 #}}}
 
+
 def is_output_responsible(rank, world_size) :
 #{{{
     # we don't want to store more data than really necessary on the 0th rank
@@ -70,13 +74,15 @@ def is_output_responsible(rank, world_size) :
         return rank == 1
 #}}}
 
+
 def cleanup_process() :
     # to be called at the end of a child process
 #{{{
     torch.distributed.destroy_process_group()
 #}}}
 
-def training_process(rank, world_size) :
+
+def training_process(rank, world_size, mpi_rank, mpi_world_size) :
     """
     A single training process, working on its own data.
 
@@ -86,6 +92,10 @@ def training_process(rank, world_size) :
     by periodically giving some loss output.
     """
 #{{{
+
+    rank += mpi_rank * mpi_world_size
+    world_size *= mpi_world_size
+
     setup_process(rank, world_size)
 
     model = Network().to(rank).to_ddp(rank, world_size)
@@ -229,6 +239,34 @@ def training_process(rank, world_size) :
     cleanup_process()
 #}}}
 
+
+def get_mpi_env() :
+    """
+    either we're working on a single node or using srun
+    In the latter case, we need to figure out how many friends we have.
+
+    We are returning
+        [0] SLURM_NTASKS
+        [1] SLURM_PROCID
+    """
+#{{{
+    env_vars_str = ['SLURM_NTASKS', 'SLURM_PROCID', 'SLURMD_NODENAME']
+    env_vars = []
+    
+    try :
+        for env_var_str in env_vars_str :
+            env_vars.append(os.environ[env_var_str])
+        print('on %s : found SLURM_NTASKS=%d, SLURM_PROCID=%d'%(env_vars[2], env_vars[0], env_vars[1]))
+    except KeyError :
+        if len(env_vars) != 0 :
+            raise RuntimeError('Found only some of the expected slurm environment variables, We better stop')
+
+        env_vars = [ 1, 0, 'not found' ]
+
+    return env_vars[:2]
+#}}}
+        
+
 def main() :
     """
     launches a couple of training_process's
@@ -237,8 +275,10 @@ def main() :
 
     world_size = torch.cuda.device_count()
 
+    mpi_rank, mpi_world_size = get_mpi_env()
+
     torch_mp.spawn(training_process,
-                   args=(world_size, ),
+                   args=(world_size, mpi_rank, mpi_world_size, ),
                    nprocs=world_size)
 #}}}
 
