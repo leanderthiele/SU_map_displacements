@@ -227,6 +227,8 @@ class StyleConv3d(nn.Module) :
 
         self.conv = Conv3d(resample=resample, external_weight=True)
 
+        # TODO kaiming_uniform is only recommended for relu/leaky_relu activation
+        #      functions
         nn.init.kaiming_uniform_(self.weight, a=math.sqrt(5),
                                  mode='fan_in',  # effectively 'fan_out' for 'D'
                                  nonlinearity='leaky_relu')
@@ -240,6 +242,8 @@ class StyleConv3d(nn.Module) :
             self.register_parameter('bias', None)
 
         self.style_weight = nn.Parameter(torch.empty(in_chan, N_styles))
+        # TODO kaiming_uniform is only recommended for relu/leaky_relu activation
+        #      functions
         nn.init.kaiming_uniform_(self.style_weight, a=math.sqrt(5),
                                  mode='fan_in', nonlinearity='leaky_relu')
         self.style_bias = nn.Parameter(torch.ones(in_chan))  # NOTE: init to 1
