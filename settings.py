@@ -37,6 +37,9 @@ class ToSet :
 # this module can check whether they have a correct view
 STARTUP_CALLED = False
 
+# whether to give some more detailed print output
+VERBOSE = False
+
 # the global mode of execution
 MODE = ToSet()
 

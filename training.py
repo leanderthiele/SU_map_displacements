@@ -163,7 +163,7 @@ def training_process(rank, world_size, mpi_rank, mpi_world_size) :
             global_inf = any(inf_list)
 
             # we can do a synchronous weight update if both the batch is full
-            # and no 
+            # and no invalid loss value has been found
             should_update_weights = batch_done and not global_inf
 
             if should_update_weights :
@@ -184,7 +184,7 @@ def training_process(rank, world_size, mpi_rank, mpi_world_size) :
                 optimizer.zero_grad()
                 idx_in_batch = 0
             
-            if rank == 0 :
+            if rank == 0 and settings.VERBOSE :
                 print('\tSample %.3d / %d finished in epoch %d, '\
                       'took %f seconds'%(t+1, len(training_loader), epoch+1, time()-start_time_sample))
 
