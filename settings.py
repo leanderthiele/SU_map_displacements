@@ -86,6 +86,18 @@ GLASS_SIDE = 64
 #              'h' (hubble parameter)
 DATA_PATH = '/projects/QUIJOTE/Leander/SU/ML_fixed_cosmo_DMonly_128'
 
+# note : the actual batch size is num_GPUs * DATALOADER_ARGS[batch_size] * BATCH_SIZE
+#        in practice, the dataloader batch size can only be 1 because otherwise
+#        we'll run out of GPU memory
+# TODO the only benefit of this being >1 would be the batch normalization.
+#      Unfortunately, the SyncBatchNorm module has a synchronization hardcoded
+#      in the forward pass, which makes it impossible to do this.
+#      Thus, for now we'll have to live with batch size = num_GPUs,
+#      if it gets really bad we can try to hack the SyncBatchNorm code
+#      (torch/nn/modules/_functions.py
+
+BATCH_SIZE = 1
+
 # NOTE since we are using distributed training, the actual number of CPUs
 #      used for the workers will be num_workers * num_GPUs
 DATALOADER_ARGS = dict(batch_size=1,

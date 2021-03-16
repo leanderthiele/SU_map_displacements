@@ -100,13 +100,16 @@ def training_process(rank, world_size) :
         all_epochs_training_loss = np.empty(0)
         all_epochs_validation_loss = np.empty(0)
 
-    global_skip_backward = False
-    skip_backward_list = [False, ] * world_size
+    # keep track of whether we encounter infinities / nans
+    global_inf = False
+    inf_list = [False, ] * world_size
 
     for epoch in range(settings.EPOCHS) :
         
         if rank == 0 :
             start_time_epoch = time()
+
+        idx_in_batch = 0
         
         # create the variables we will later share with the root thread
         # note that it is useful to set the training loss to an impossible state initially
@@ -116,6 +119,9 @@ def training_process(rank, world_size) :
 
         # set model into training mode
         model.train()
+
+        # reset the optimizer
+        optimizer.zero_grad()
 
         # loop once through the training data
         for t, data in enumerate(training_loader) :
@@ -129,11 +135,11 @@ def training_process(rank, world_size) :
 
             # do the forward pass and compute loss
 
-            if not global_skip_backward :
-                # we did not encounter infinity/nan during the last forward pass
-                # thus, the optimizer.step method has been called and we can reset
-                # the gradients
-                optimizer.zero_grad()
+            # we do the last batch incompletely if necessary
+            # note the >=, it guards us against the possibility that a
+            # full batch and an invalid loss coincide
+            batch_done = idx_in_batch >= settings.BATCH_SIZE \
+                         or t == len(training_loader)-1
 
             prediction = model(inputs, styles)
 
@@ -144,15 +150,19 @@ def training_process(rank, world_size) :
 
             # check whether we need to disable synchronization because
             # at least one process had a problem
-            this_skip_backward = not np.isfinite(this_training_loss.item())
-            torch.distributed.all_gather_object(skip_backward_list, this_skip_backward)
-            global_skip_backward = any(skip_backward_list)
+            this_inf = not np.isfinite(this_training_loss.item())
+            torch.distributed.all_gather_object(inf_list, this_inf)
+            global_inf = any(inf_list)
 
-            if not global_skip_backward :
+            # we can do a synchronous weight update if both the batch is full
+            # and no 
+            should_update_weights = batch_done and not global_inf
+
+            if should_update_weights :
                 # update gradients synchronously -- this is an implicit synchronization point!
                 this_training_loss.backward()
             else :
-                if this_skip_backward :
+                if this_inf :
                     # we encountered infinity/nan and should throw this loss away
                     print('encountered invalid loss in rank %d'%rank)
                 else :
@@ -160,9 +170,11 @@ def training_process(rank, world_size) :
                     with model.no_sync() :
                         this_training_loss.backward()
 
-            if not global_skip_backward :
+            if should_update_weights :
                 # each process sees the same gradients and can therefore do the same weight updates
                 optimizer.step()
+                optimizer.zero_grad()
+                idx_in_batch = 0
             
             if rank == 0 :
                 print('\tSample %.3d / %d finished in epoch %d, '\
