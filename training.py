@@ -88,11 +88,10 @@ def training_process(rank, world_size) :
 #{{{
     setup_process(rank, world_size)
 
-    model = Network().to(rank)
-    ddp_model = DistributedDataParallel(model, device_ids=[rank])
+    model = Network().to(rank).to_ddp(rank, world_size)
     
     loss_fn = Loss()
-    optimizer = Optimizer(ddp_model.parameters())
+    optimizer = Optimizer(model.parameters())
 
     training_loader = DataLoader(DataModes.TRAINING, rank, world_size)
     validation_loader = DataLoader(DataModes.VALIDATION, rank, world_size)
@@ -116,7 +115,7 @@ def training_process(rank, world_size) :
         validation_loss = 0.0
 
         # set model into training mode
-        ddp_model.train()
+        model.train()
 
         # loop once through the training data
         for t, data in enumerate(training_loader) :
@@ -136,7 +135,7 @@ def training_process(rank, world_size) :
                 # the gradients
                 optimizer.zero_grad()
 
-            prediction = ddp_model(inputs, styles)
+            prediction = model(inputs, styles)
 
             this_training_loss = loss_fn(prediction, targets)
 
@@ -158,7 +157,7 @@ def training_process(rank, world_size) :
                     print('encountered invalid loss in rank %d'%rank)
                 else :
                     # update gradients asynchronously in those processes that did not have a problem
-                    with ddp_model.no_sync() :
+                    with model.no_sync() :
                         this_training_loss.backward()
 
             if not global_skip_backward :
@@ -170,7 +169,7 @@ def training_process(rank, world_size) :
                       'took %f seconds'%(t+1, len(training_loader), epoch+1, time()-start_time_sample))
 
         # set model into evaluation mode
-        ddp_model.eval()
+        model.eval()
         
         # loop once through the validation data
         with torch.no_grad() :
@@ -180,7 +179,7 @@ def training_process(rank, world_size) :
 
                 inputs, targets, styles = data.get_on_device()
 
-                prediction = ddp_model(inputs, styles)
+                prediction = model(inputs, styles)
                 validation_loss += loss_fn(prediction, targets).item()
 
         # normalize (per data item)
@@ -209,7 +208,7 @@ def training_process(rank, world_size) :
             do_diagnostic_output(all_epochs_training_loss, all_epochs_validation_loss,
                                  epoch+1, len(training_loader), world_size)
 
-            save_model(ddp_model)
+            save_model(model)
 
         if rank == 0 :
             print('Epoch %d finished, took %f seconds'%(epoch+1, time()-start_time_epoch))

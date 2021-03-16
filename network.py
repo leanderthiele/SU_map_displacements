@@ -2,6 +2,7 @@ from copy import deepcopy
 
 import torch
 import torch.nn as nn
+from torch.nn.parallel import DistributedDataParallel
 
 import settings
 from network_utils import Activations, Layout, Block, Level
@@ -82,4 +83,12 @@ class Network(nn.Module) :
         x = self.collapse(x, s)
 
         return x
+
+    
+    def to_ddp(self, rank, world_size) :
+        # turns the network into a parallel module
+
+        # we need to convert all batch normalizations into synchronized ones!
+        return DistributedDataParallel(nn.SyncBatchNorm.convert_sync_batchnorm(self),
+                                       device_idx=[rank])
 #}}}
