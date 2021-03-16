@@ -81,6 +81,15 @@ def get_runs(mode) :
 
             for i2, run_fname2 in enumerate(run_fnames[i1+1:]) :
                 run2 = SimulationRun(run_fname2)
+
+                # check if we want to include this value of the overdensity
+                if run1.delta_L < settings.DELTA_L_BOUNDS[0] \
+                   or run1.delta_L > settings.DELTA_L_BOUNDS[1] \
+                   or run2.delta_L < settings.DELTA_L_BOUNDS[0] \
+                   or run2.delta_L > settings.DELTA_L_BOUNDS[1] :
+                    continue
+
+                # all checks passed --> append to the output
                 run_pairs.append(tuple(sorted((run1, run2), key=lambda x : x.delta_L)))
 
     # we want to randomly shuffle the pairs, but so that each instance does the same shuffling

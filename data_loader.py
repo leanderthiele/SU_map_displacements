@@ -42,6 +42,8 @@ class Dataset(torch_Dataset) :
 
         self.run_pairs = get_runs(self.mode)
 
+        print('%d samples in the %s set'%(len(self.run_pairs), str(mode)))
+
     def getitem_all(self, idx) :
         # operates on the entire dataset
 

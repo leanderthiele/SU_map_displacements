@@ -55,6 +55,9 @@ USE_DENSITY = True
 # whether we want to work in little h-units internally
 H_UNITS = False
 
+# in which range we want to train (can restrict initially to make task simpler)
+DELTA_L_BOUNDS = [0.0, 0.3]
+
 # should be somewhat larger than the largest box size that will be encountered
 # (precise value is not super important)
 MAX_BOX_SIZE = 25000 / 0.6
