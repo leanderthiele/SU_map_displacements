@@ -54,6 +54,8 @@ class DataItem :
 
     def normalize_for_input(self) :
         # cannot be called after to_torch()
+        # mutually exclusive with normalize_for_target
+
         # TODO in principle, we could think about using the same normalization function
         #      everywhere here. Then it would simply be a collection of magic numbers.
         # TODO we also need to normalize the overdensity
@@ -73,6 +75,7 @@ class DataItem :
 
     def normalize_for_target(self) :
         # cannot be called after to_torch()
+        # mutually exclusive with normalize_for_input
         
         assert self.tensor is None
         assert not self.is_normalized
@@ -83,6 +86,10 @@ class DataItem :
         # Note that delta_L is actually used as an input, but this structure
         # should be clear
         self.delta_L = settings.DELTA_L_NORMALIZATIONS[self.mode](self.delta_L)
+
+        self.is_normalized = True
+
+        return self
 
     def __reflect(self, indices) :
         # indices labels the axes that should be reflected
@@ -172,8 +179,8 @@ class InputTargetPair :
     def normalize(self) :
         # performs normalization according to the supplied functions
         # Needs to be called prior to to_torch()
-        self.item1 = self.item1.normalize()
-        self.item2 = self.item2.normalize()
+        self.item1 = self.item1.normalize_for_input()
+        self.item2 = self.item2.normalize_for_target()
         return self
 
     def augment_data(self, rand_int=None) :

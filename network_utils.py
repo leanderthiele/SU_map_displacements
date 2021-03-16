@@ -117,7 +117,7 @@ class StandardActivation(nn.Hardshrink) :
     Replaces the above for now
     """
 #{{{
-    def __init__(self, *args) :
+    def __init__(self, *args, **kwargs) :
         super().__init__()
 #}}}
 
@@ -129,7 +129,7 @@ class OutputActivation(nn.Tanh) :
     but since it is applied only once in the entire network it is completely fine.
     """
 #{{{
-    def __init__(self) :
+    def __init__(self, *args, **kwargs) :
         super().__init__()
 #}}}
 
@@ -167,13 +167,13 @@ class Conv3d(nn.Module) :
                              if self.resample is Resample.UP
                              else F.conv3d)(x, w, bias=b, stride=stride, **kwargs)
         else :
-            conv = (nn.ConvTranspose3d
-                    if self.resample is Resample.UP
-                    else nn.Conv3d)(in_layout.channels, out_layout.channels, 3, stride=stride,
-                                    groups=get_groups(group_mode, in_layout, out_layout),
-                                    bias=True if bias is None else bias)
-            self.conv = lambda x, w, b, c=conv, **kwargs : \
-                             c(x)
+            self.conv_ = (nn.ConvTranspose3d
+                          if self.resample is Resample.UP
+                          else nn.Conv3d)(in_layout.channels, out_layout.channels, 3, stride=stride,
+                                          groups=get_groups(group_mode, in_layout, out_layout),
+                                          bias=True if bias is None else bias)
+            self.conv = lambda x, w, b, **kwargs : \
+                             self.conv_(x)
 
     def forward(self, x, w=None, b=None, **kwargs) :
         # note that w, b, and kwargs are only used for the external_weight case
@@ -294,9 +294,11 @@ class Layer(nn.Module) :
                        batch_norm_kw={}) :
         super().__init__()
 
-        self.activation = (nn.Identity if activation is Activations.NONE
-                           else StandardActivation if activation is Activations.STANDARD
-                           else OutputActivation if activation is Activations.OUTPUT)(out_layout)
+        assert isinstance(activation, Activations)
+
+        self.activation = (StandardActivation if activation is Activations.STANDARD
+                           else OutputActivation if activation is Activations.OUTPUT
+                           else nn.Identity)()
         self.batch_norm = (nn.Identity if not batch_norm else nn.BatchNorm3d) \
                                 (**batch_norm_kw)
         self.dropout    = (nn.Identity if not dropout else nn.Dropout3d) \
