@@ -293,7 +293,7 @@ class Layer(nn.Module) :
     """
 #{{{
     def __init__(self, in_layout, out_layout,
-                       activation=Activations.STANDARD, batch_norm=False, dropout=False, styles=False, bias=True,
+                       activation=Activations.STANDARD, batch_norm=True, dropout=False, styles=False, bias=True,
                        group_mode=GroupModes.ALL, # do not change if styles=True
                        batch_norm_kw={}) :
         super().__init__()
@@ -362,7 +362,7 @@ class Block(nn.Module) :
 #{{{
     def __init__(self, in_layout, out_layout,
                        N_layers=4, residual=True,
-                       activation=Activations.STANDARD, batch_norm=False, dropout=False, bias=True,
+                       activation=Activations.STANDARD, batch_norm=True, dropout=False, bias=True,
                        batch_norm_kw={}) :
         super().__init__()
 
