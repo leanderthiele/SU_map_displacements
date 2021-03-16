@@ -99,7 +99,7 @@ DATA_PATH = '/projects/QUIJOTE/Leander/SU/ML_fixed_cosmo_DMonly_128'
 #      if it gets really bad we can try to hack the SyncBatchNorm code
 #      (torch/nn/modules/_functions.py
 
-BATCH_SIZE = 1
+BATCH_SIZE = 4
 
 # Note: since we are using distributed training, the actual number of CPUs
 #       used for the workers will be num_workers * num_GPUs
@@ -125,7 +125,7 @@ NSEEDS_VALIDATION = 8
 # must be <= 48 and divisible by the number of GPUs
 # (note that all 48 augmentations will still occur if this is set
 #  to less than 48, just not every epoch for every sample)
-N_AUGMENTATIONS = 4
+N_AUGMENTATIONS = 48
 
 # number of styles, 1 for delta_L only
 NSTYLES = 1

@@ -45,14 +45,14 @@ def load_model(model, rank) :
 #}}}
 
 
-def setup_process(rank, world_size) :
+def setup_process(rank, world_size, host_name) :
     # to be called at the beginning of a child process
 #{{{
     # new process needs to get a consistent view of the settings
     startup.main(DataModes.TRAINING)
 
     # these are taken from the example at https://pytorch.org/tutorials/intermediate/ddp_tutorial.html
-    os.environ['MASTER_ADDR'] = 'localhost'
+    os.environ['MASTER_ADDR'] = host_name
     os.environ['MASTER_PORT'] = '12355'
 
     torch.distributed.init_process_group('nccl', rank=rank, world_size=world_size)
@@ -80,7 +80,7 @@ def cleanup_process() :
 #}}}
 
 
-def training_process(rank, world_size, mpi_rank, mpi_world_size) :
+def training_process(rank, world_size, mpi_rank, mpi_world_size, host_name) :
     """
     A single training process, working on its own data.
 
@@ -94,12 +94,15 @@ def training_process(rank, world_size, mpi_rank, mpi_world_size) :
     rank += mpi_rank * mpi_world_size
     world_size *= mpi_world_size
 
-    setup_process(rank, world_size)
+    setup_process(rank, world_size, host_name)
 
     model = Network().to(rank).to_ddp(rank, world_size)
     
     loss_fn = Loss()
     optimizer = Optimizer(model.parameters())
+
+    # reset the optimizer -- not sure if it is necessary here but can't hurt
+    optimizer.zero_grad()
 
     training_loader = DataLoader(DataModes.TRAINING, rank, world_size)
     validation_loader = DataLoader(DataModes.VALIDATION, rank, world_size)
@@ -112,13 +115,15 @@ def training_process(rank, world_size, mpi_rank, mpi_world_size) :
     global_inf = False
     inf_list = [False, ] * world_size
 
+    # initialize outside the epoch loop so we can carry samples over from one
+    # epoch to the other if a batch is incomplete
+    idx_in_batch = 0
+        
+
     for epoch in range(settings.EPOCHS) :
         
         if rank == 0 :
             start_time_epoch = time()
-
-        idx_in_batch = 0
-        
         # create the variables we will later share with the root thread
         # note that it is useful to set the training loss to an impossible state initially
         # because we can catch bugs more easily
@@ -128,14 +133,13 @@ def training_process(rank, world_size, mpi_rank, mpi_world_size) :
         # set model into training mode
         model.train()
 
-        # reset the optimizer
-        optimizer.zero_grad()
-
         # loop once through the training data
         for t, data in enumerate(training_loader) :
             
             if rank == 0 :
                 start_time_sample = time()
+
+            idx_in_batch += 1
             
             assert isinstance(data, Batch)
 
@@ -143,11 +147,9 @@ def training_process(rank, world_size, mpi_rank, mpi_world_size) :
 
             # do the forward pass and compute loss
 
-            # we do the last batch incompletely if necessary
-            # note the >=, it guards us against the possibility that a
+            # note the >, it guards us against the possibility that a
             # full batch and an invalid loss coincide
-            batch_done = idx_in_batch >= settings.BATCH_SIZE \
-                         or t == len(training_loader)-1
+            batch_done = idx_in_batch > settings.BATCH_SIZE
 
             prediction = model(inputs, styles)
 
@@ -246,6 +248,7 @@ def get_mpi_env() :
     We are returning
         [0] SLURM_NTASKS
         [1] SLURM_PROCID
+        [2] SLURMD_NODENAME
     """
 #{{{
     env_vars_str = ['SLURM_NTASKS', 'SLURM_PROCID', 'SLURMD_NODENAME']
@@ -259,9 +262,31 @@ def get_mpi_env() :
         if len(env_vars) != 0 :
             raise RuntimeError('Found only some of the expected slurm environment variables, We better stop')
 
-        env_vars = [ 1, 0, 'not found' ]
+        env_vars = [ 1, 0, 'localhost' ]
 
-    return env_vars[:2]
+    return env_vars
+#}}}
+
+
+def get_host_name(mpi_rank, node_name) :
+    """
+    returns the name of the host
+    not called -- and thus no mpi import -- if not run with srun
+    """
+#{{{
+    from mpi4py import MPI
+
+    comm = MPI.COMM_WORLD
+    assert comm.Get_rank() == mpi_rank
+
+    if mpi_rank == 0 :
+        host_name = node_name
+    else :
+        host_name = None
+
+    host_name = comm.bcast(host_name, root=0)
+
+    return host_name
 #}}}
         
 
@@ -273,10 +298,15 @@ def main() :
 
     world_size = torch.cuda.device_count()
 
-    mpi_rank, mpi_world_size = get_mpi_env()
+    mpi_rank, mpi_world_size, node_name = get_mpi_env()
+
+    if node_name != 'localhost' :
+        host_name = get_host_name(mpi_rank, node_name)
+    else :
+        host_name = 'localhost'
 
     torch_mp.spawn(training_process,
-                   args=(world_size, mpi_rank, mpi_world_size, ),
+                   args=(world_size, mpi_rank, mpi_world_size, host_name, ),
                    nprocs=world_size)
 #}}}
 
