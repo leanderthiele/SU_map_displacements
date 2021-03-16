@@ -304,7 +304,7 @@ class Layer(nn.Module) :
                            else OutputActivation if activation is Activations.OUTPUT
                            else nn.Identity)()
         self.batch_norm = (nn.Identity if not batch_norm else nn.BatchNorm3d) \
-                                (**batch_norm_kw)
+                                (out_layout.channels, **batch_norm_kw)
         self.dropout    = (nn.Identity if not dropout else nn.Dropout3d) \
                                 (0.5 if isinstance(dropout, bool)
                                  else dropout if isinstance(dropout, float)
