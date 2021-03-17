@@ -27,9 +27,13 @@ class ToSet :
     if needed (e.g. with a `required' switch)
     """
 #{{{
-    def __init__(self) :
-        pass
-    def set(self, value) :
+    def __init__(self, default) :
+        self.default = default
+    def set(self, value=None) :
+        if value is None :
+            if self.default is None :   
+                raise RuntimeError('default-less ToSet instance not set')
+            return self.default
         return value
 #}}}
 
@@ -38,15 +42,18 @@ class ToSet :
 STARTUP_CALLED = False
 
 # whether to give some more detailed print output
-VERBOSE = False
+VERBOSE = True
+
+# whether to run in multi-node mode
+MPI = ToSet(False)
 
 # the global mode of execution
-MODE = ToSet()
+MODE = ToSet(None)
 
 # the global ID of this run
 # we can use it, for example, to produce unique output file names
 # and identify which files we should load as input during testing
-ID = ToSet()
+ID = ToSet('debug')
 
 # whether we want to map only from the zero DC mode to others
 # or, if False, from any DC mode to any other
@@ -99,7 +106,7 @@ DATA_PATH = '/projects/QUIJOTE/Leander/SU/ML_fixed_cosmo_DMonly_128'
 #      if it gets really bad we can try to hack the SyncBatchNorm code
 #      (torch/nn/modules/_functions.py
 
-BATCH_SIZE = 4
+BATCH_SIZE = ToSet(1)
 
 # Note: since we are using distributed training, the actual number of CPUs
 #       used for the workers will be num_workers * num_GPUs
@@ -125,7 +132,7 @@ NSEEDS_VALIDATION = 8
 # must be <= 48 and divisible by the number of GPUs
 # (note that all 48 augmentations will still occur if this is set
 #  to less than 48, just not every epoch for every sample)
-N_AUGMENTATIONS = 48
+N_AUGMENTATIONS = ToSet(4)
 
 # number of styles, 1 for delta_L only
 NSTYLES = 1
@@ -134,9 +141,9 @@ NSTYLES = 1
 NORMALIZATION_FILE = 'normalization_128.npz'
 
 # dicts that store lambda functions for the normalization
-DENSITY_NORMALIZATIONS = ToSet()
-DISPLACEMENT_NORMALIZATIONS = ToSet()
-DELTA_L_NORMALIZATIONS = ToSet()
+DENSITY_NORMALIZATIONS = ToSet(None)
+DISPLACEMENT_NORMALIZATIONS = ToSet(None)
+DELTA_L_NORMALIZATIONS = ToSet(None)
 
 # set this to a high number and train until time is up
 EPOCHS = 1000
@@ -152,7 +159,7 @@ OPTIMIZER_ARGS = dict(lr=1e-3,
 RESULTS_PATH = 'results'
 
 # where we store the training and validation loss
-LOSS_FILE = ToSet()
+LOSS_FILE = ToSet(RESULTS_PATH+'/loss.npz')
 
 # where to store the model during training
-MODEL_FILE = ToSet()
+MODEL_FILE = ToSet(RESULTS_PATH+'/model.pt')

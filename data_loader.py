@@ -163,7 +163,7 @@ class WorkerPool :
 
         # until we figure out why each worker gets a CUDA context,
         # we should distribute them equally across the devices
-        torch.cuda.set_device(self.rank)
+        torch.cuda.set_device(0 if settings.MPI else self.rank)
 
         # initialize the random seed for this process
         # we don't use just the worker_id but also the rank

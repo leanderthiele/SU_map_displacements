@@ -1,3 +1,4 @@
+from sys import argv
 import os.path
 import warnings
 import argparse
@@ -15,21 +16,37 @@ class ArgParser :
     """
 #{{{
     def populate_parser(self) :
-        self.parser.add_argument('--id', nargs='?', default='debug',
-                                 help='string that identifies data associated with this run')
+
+        self.parser.add_argument('--id', type=str,
+                                 help='settings.ID : string, identifies data associated with this run')
+        self.parser.add_argument('--batchsize', type=int,
+                                 help='settings.BATCH_SIZE : integer, real batch size is times num_GPUs')
+        self.parser.add_argument('--naugment', type=int,
+                                 help='settings.N_AUGMENTATIONS : integer, number of augmentations per epoch')
+        self.parser.add_argument('--mpi', action='store_true',
+                                 help='settings.MPI : if set, run in multi-node mode')
+
+
     def __init__(self) :
+
         # construct the argument parser
         self.parser = argparse.ArgumentParser()
 
         # load the switches we would like to parse
         self.populate_parser()
 
+
     def parse_and_set(self) :
+
         args = self.parser.parse_args()
 
-        if args.id == 'debug' :
-            warnings.warn('--id not set, defaulting to debug')
-        settings.ID = settings.ID.set(args.id)
+        if hasattr(args, 'id') :
+            settings.ID = settings.ID.set(args.id)
+        if hasattr(args, 'batchsize') :
+            settings.BATCH_SIZE = settings.BATCH_SIZE.set(args.batchsize)
+        if hasattr(args, 'naugment') :
+            settings.N_AUGMENTATIONS = settings.N_AUGMENTATIONS.set(args.naugment)
+        settings.MPI = settings.MPI.set(args.mpi)
 #}}}
 
 def populate_settings_from_cl() :
@@ -82,12 +99,9 @@ def set_filenames() :
     settings.MODEL_FILE = settings.MODEL_FILE.set(os.path.join(settings.RESULTS_PATH, 'model_%s.pt'%settings.ID))
 #}}}
 
-def check_all_set() :
+def set_remaining() :
     """
-    checks that none of the variables in the settings module is still ToSet.
-    (or, if it is a composite type like a list, tuple, dict, class, etc.,
-     whether any of its members are still ToSet)
-    This is a good way to check that startup.main() has done its job.
+    set ToSet instances to their default values if they have not already been set
     """
 #{{{
     for name in dir(settings) :
@@ -97,13 +111,13 @@ def check_all_set() :
         this_setting = settings.__dict__[name]
 
         if isinstance(this_setting, ToSet) :
-            raise RuntimeError('settings.%s not set by startup.main'%name)
+            settings.__dict__[name] = this_setting.set()
 
         try :
             # dict-like
             for k, v in this_setting.items() :
                 if isinstance(v, ToSet) :
-                    raise RuntimeError('settings.%s[%s] not set by startup.main'%(name, k))
+                    this_setting[k] = v.set()
         except AttributeError :
             pass
 
@@ -111,7 +125,7 @@ def check_all_set() :
             # iterable
             for ii, v in enumerate(this_setting) :
                 if isinstance(v, ToSet) :
-                    raise RuntimeError('settings.%s[%d] not set by startup.main'%(name, ii))
+                    this_setting[ii] = v.set()
         except TypeError :
             pass
 
@@ -121,7 +135,7 @@ def check_all_set() :
                 if k.startswith('__') :
                     continue
                 if isinstance(v, ToSet) :
-                    raise RuntimeError('settings.%s.%s not set by startup.main'%(name, k))
+                    this_setting.__dict__[k] = v.set()
         except TypeError :
             pass
 #}}}
@@ -132,6 +146,10 @@ def main(mode) :
     `mode' refers to the global mode of execution.
     """
     assert isinstance(mode, data_loader.DataModes)
+
+    # avoid double initialization, this would otherwise happen in the mpi mode
+    if settings.STARTUP_CALLED :
+        return
 
     # tell anyone using the settings module that it
     # is in the correct state
@@ -146,4 +164,4 @@ def main(mode) :
     populate_settings_from_cl()
     set_filenames()
     load_normalizations()
-    check_all_set()
+    set_remaining()

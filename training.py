@@ -39,6 +39,7 @@ def load_model(model, rank) :
     # the tensors to the correct devices
     # TODO we probably want to store other data as well, most importantly the optimizer state dict
     #      other things we can put in are the loss curves
+    # TODO this function may not be correct in mpi mode
 #{{{
     map_location = { 'cuda:0' : 'cuda:%d'%rank }
     model.load_state_dict(torch.load(settings.MODEL_FILE, map_location=map_location))
@@ -57,7 +58,7 @@ def setup_process(rank, world_size, host_name) :
 
     torch.distributed.init_process_group('nccl', rank=rank, world_size=world_size)
 
-    torch.cuda.set_device(rank)
+    torch.cuda.set_device(0 if settings.MPI else rank)
 #}}}
 
 
@@ -80,7 +81,7 @@ def cleanup_process() :
 #}}}
 
 
-def training_process(rank, world_size, mpi_rank, mpi_world_size, host_name) :
+def training_process(rank, world_size, host_name) :
     """
     A single training process, working on its own data.
 
@@ -91,12 +92,9 @@ def training_process(rank, world_size, mpi_rank, mpi_world_size, host_name) :
     """
 #{{{
 
-    rank += mpi_rank * mpi_world_size
-    world_size *= mpi_world_size
-
     setup_process(rank, world_size, host_name)
 
-    model = Network().to(rank).to_ddp(rank, world_size)
+    model = Network().to(0 if settings.MPI else rank).to_ddp(rank, world_size)
     
     loss_fn = Loss()
     optimizer = Optimizer(model.parameters())
@@ -251,18 +249,23 @@ def get_mpi_env() :
         [2] SLURMD_NODENAME
     """
 #{{{
+    assert settings.MPI
+
     env_vars_str = ['SLURM_NTASKS', 'SLURM_PROCID', 'SLURMD_NODENAME']
     env_vars = []
     
     try :
         for env_var_str in env_vars_str :
             env_vars.append(os.environ[env_var_str])
+        env_vars[0] = int(env_vars[0])
+        env_vars[1] = int(env_vars[1])
         print('on %s : found SLURM_NTASKS=%d, SLURM_PROCID=%d'%(env_vars[2], env_vars[0], env_vars[1]))
     except KeyError :
         if len(env_vars) != 0 :
             raise RuntimeError('Found only some of the expected slurm environment variables, We better stop')
 
         env_vars = [ 1, 0, 'localhost' ]
+
 
     return env_vars
 #}}}
@@ -298,16 +301,24 @@ def main() :
 
     world_size = torch.cuda.device_count()
 
-    mpi_rank, mpi_world_size, node_name = get_mpi_env()
-
-    if node_name != 'localhost' :
+    if settings.MPI :
+        mpi_world_size, mpi_rank, node_name = get_mpi_env()
         host_name = get_host_name(mpi_rank, node_name)
+        assert world_size == 1 # only implement training on a single device per process
+        print('on node %s, rank %d : host = %s'%(node_name, mpi_rank, host_name))
     else :
         host_name = 'localhost'
 
-    torch_mp.spawn(training_process,
-                   args=(world_size, mpi_rank, mpi_world_size, host_name, ),
-                   nprocs=world_size)
+    assert mpi_world_size > 0
+    assert mpi_rank < mpi_world_size
+
+
+    if settings.MPI :
+        training_process(mpi_rank, mpi_world_size, host_name)
+    else :
+        torch_mp.spawn(training_process,
+                       args=(world_size, host_name, ),
+                       nprocs=world_size)
 #}}}
 
 if __name__ == '__main__' :
