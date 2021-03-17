@@ -46,31 +46,30 @@ def load_model(model, rank) :
 #}}}
 
 
-def setup_process(rank, world_size, host_name) :
+def setup_process(rank) :
     # to be called at the beginning of a child process
 #{{{
     # new process needs to get a consistent view of the settings
-    startup.main(DataModes.TRAINING)
+    startup.main(DataModes.TRAINING, rank)
 
-    # these are taken from the example at https://pytorch.org/tutorials/intermediate/ddp_tutorial.html
-    os.environ['MASTER_ADDR'] = host_name
-    os.environ['MASTER_PORT'] = '12355'
+    os.environ['MASTER_ADDR'] = settings.MASTER_ADDR
+    os.environ['MASTER_PORT'] = settings.MASTER_PORT
 
-    torch.distributed.init_process_group('nccl', rank=rank, world_size=world_size)
+    torch.distributed.init_process_group('nccl', rank=settings.RANK, world_size=settings.WORLD_SIZE)
 
-    torch.cuda.set_device(0 if settings.MPI else rank)
+    torch.cuda.set_device(settings.DEVICE_IDX)
 #}}}
 
 
-def is_output_responsible(rank, world_size) :
+def is_output_responsible() :
 #{{{
     # we don't want to store more data than really necessary on the 0th rank
     # which has to collect all the gradients already
 
-    if world_size == 1 :
-        return rank == 0
+    if settings.WORLD_SIZE == 1 :
+        return settings.RANK == 0
     else :
-        return rank == 1
+        return settings.RANK == 1
 #}}}
 
 
@@ -81,7 +80,7 @@ def cleanup_process() :
 #}}}
 
 
-def training_process(rank, world_size, host_name) :
+def training_process(rank) :
     """
     A single training process, working on its own data.
 
@@ -91,10 +90,9 @@ def training_process(rank, world_size, host_name) :
     by periodically giving some loss output.
     """
 #{{{
+    setup_process(rank)
 
-    setup_process(rank, world_size, host_name)
-
-    model = Network().to(0 if settings.MPI else rank).to_ddp(rank, world_size)
+    model = Network().to(settings.DEVICE_IDX).to_ddp(settings.RANK, settings.WORLD_SIZE)
     
     loss_fn = Loss()
     optimizer = Optimizer(model.parameters())
@@ -102,10 +100,10 @@ def training_process(rank, world_size, host_name) :
     # reset the optimizer -- not sure if it is necessary here but can't hurt
     optimizer.zero_grad()
 
-    training_loader = DataLoader(DataModes.TRAINING, rank, world_size)
-    validation_loader = DataLoader(DataModes.VALIDATION, rank, world_size)
+    training_loader = DataLoader(DataModes.TRAINING)
+    validation_loader = DataLoader(DataModes.VALIDATION)
 
-    if is_output_responsible(rank, world_size) :
+    if is_output_responsible() :
         all_epochs_training_loss = np.empty(0)
         all_epochs_validation_loss = np.empty(0)
 
@@ -238,89 +236,16 @@ def training_process(rank, world_size, host_name) :
 #}}}
 
 
-def get_mpi_env() :
-    """
-    either we're working on a single node or using srun
-    In the latter case, we need to figure out how many friends we have.
-
-    We are returning
-        [0] SLURM_NTASKS
-        [1] SLURM_PROCID
-        [2] SLURMD_NODENAME
-    """
-#{{{
-    assert settings.MPI
-
-    env_vars_str = ['SLURM_NTASKS', 'SLURM_PROCID', 'SLURMD_NODENAME']
-    env_vars = []
-    
-    try :
-        for env_var_str in env_vars_str :
-            env_vars.append(os.environ[env_var_str])
-        env_vars[0] = int(env_vars[0])
-        env_vars[1] = int(env_vars[1])
-        print('on %s : found SLURM_NTASKS=%d, SLURM_PROCID=%d'%(env_vars[2], env_vars[0], env_vars[1]))
-    except KeyError :
-        if len(env_vars) != 0 :
-            raise RuntimeError('Found only some of the expected slurm environment variables, We better stop')
-
-        env_vars = [ 1, 0, 'localhost' ]
-
-
-    return env_vars
-#}}}
-
-
-def get_host_name(mpi_rank, node_name) :
-    """
-    returns the name of the host
-    not called -- and thus no mpi import -- if not run with srun
-    """
-#{{{
-    from mpi4py import MPI
-
-    comm = MPI.COMM_WORLD
-    assert comm.Get_rank() == mpi_rank
-
-    if mpi_rank == 0 :
-        host_name = node_name
-    else :
-        host_name = None
-
-    host_name = comm.bcast(host_name, root=0)
-
-    return host_name
-#}}}
-        
-
 def main() :
     """
     launches a couple of training_process's
     """
 #{{{
+    startup.main(DataModes.TRAINING)
 
-    world_size = torch.cuda.device_count()
-
-    if settings.MPI :
-        mpi_world_size, mpi_rank, node_name = get_mpi_env()
-        host_name = get_host_name(mpi_rank, node_name)
-        assert world_size == 1 # only implement training on a single device per process
-        print('on node %s, rank %d : host = %s'%(node_name, mpi_rank, host_name))
-    else :
-        host_name = 'localhost'
-
-    assert mpi_world_size > 0
-    assert mpi_rank < mpi_world_size
-
-
-    if settings.MPI :
-        training_process(mpi_rank, mpi_world_size, host_name)
-    else :
-        torch_mp.spawn(training_process,
-                       args=(world_size, host_name, ),
-                       nprocs=world_size)
+    torch_mp.spawn(training_process,
+                   nprocs=settings.NUM_GPUS)
 #}}}
 
 if __name__ == '__main__' :
-    startup.main(DataModes.TRAINING)
     main()

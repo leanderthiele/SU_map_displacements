@@ -1,3 +1,4 @@
+from copy import copy
 from glob import glob
 from enum import Enum, auto
 from time import time
@@ -32,13 +33,11 @@ class Dataset(torch_Dataset) :
     represents a torch-compatible collection of simulation data
     """
 #{{{
-    def __init__(self, mode, rank, world_size) :
+    def __init__(self, mode) :
         # populates self.run_pairs, which contains pairs of __Run instances,
         # each pair sorted in such a way that the lower delta_L comes first
 
         self.mode = mode 
-        self.rank = rank
-        self.world_size = world_size
 
         self.run_pairs = get_runs(self.mode)
 
@@ -67,7 +66,7 @@ class Dataset(torch_Dataset) :
     def __getitem__(self, idx) :
         # operates on the sub-dataset corresponding to this rank
 
-        return self.getitem_all(idx * self.world_size + self.rank)
+        return self.getitem_all(idx * settings.WORLD_SIZE + settings.RANK)
 
     def len_all(self) :
         # operates on the entire dataset
@@ -77,25 +76,24 @@ class Dataset(torch_Dataset) :
     def __len__(self) :
         # operates on the sub-dataset corresponding to this rank
 
-        return self.len_all() // self.world_size
+        return self.len_all() // settings.WORLD_SIZE
 #}}}
 
 class Batch :
     """
     represents a Batch of data items
-    (we use the constructor to extract the required fields)
-    The constructed Batch has the fields
-        inputs, output, styles,
+
+    Upon construction, Batch has the fields
+        inputs, targets, styles,
     each with the 0th dimension the batch dimension
+
+    We expose the method get_on_device() that returns the tuple
+        inputs, targets, styles
+    on the device local to the process
     """
 #{{{
-    def __init__(self, device) :
-        self.device = device
-        self.inputs = None
-        self.targets = None
-        self.styles = None
+    def __init__(self, data_items) :
 
-    def __call__(self, data_items) :
         # we use this method as collate_fn, in which case data_items
         # will be a list of InputTargetPair's, or, if automatic batching is disabled,
         # a single InputTargetPair
@@ -137,9 +135,9 @@ class Batch :
         return self
 
     def get_on_device(self) :
-        return self.inputs.to(self.device, non_blocking=True), \
-               self.targets.to(self.device, non_blocking=True), \
-               self.styles.to(self.device)
+        return self.inputs.to(settings.DEVICE_IDX, non_blocking=True), \
+               self.targets.to(settings.DEVICE_IDX, non_blocking=True), \
+               self.styles.to(settings.DEVICE_IDX)
 
 #}}}
 
@@ -148,22 +146,27 @@ class WorkerPool :
     at the moment, this is simply used as a callable for the worker_init_fn
     argument for the pytorch DataLoader in order to do stuff that we require
     to happen at the start of a worker process.
-
-    Note that `rank' and `world_size' refer to the top-level multiprocessing,
-    not the lower level multiprocessing that happens in the worker teams.
     """
 #{{{
-    def __init__(self, mode, rank, world_size) :
+    def __init__(self, mode) :
         self.mode = mode
-        self.rank = rank
-        self.world_size = world_size
+
+        # we need to store the process-dependent stuff locally
+        # because we don't have it available in settings when init_worker is called
+        # the copy is superfluous at the moment because integers are not mutable,
+        # but we never know if we may want to change the types later (improbable though)
+        self.rank = copy(settings.LOCAL_RANK)
 
     def init_worker(self, worker_id) :
         # use this method as worker_init_fn
 
+        # since this is called in a separate process,
+        # we need to get a consistent view of the settings
+        startup.main(self.mode, self.rank)
+
         # until we figure out why each worker gets a CUDA context,
         # we should distribute them equally across the devices
-        torch.cuda.set_device(0 if settings.MPI else self.rank)
+        torch.cuda.set_device(settings.DEVICE_IDX)
 
         # initialize the random seed for this process
         # we don't use just the worker_id but also the rank
@@ -172,12 +175,8 @@ class WorkerPool :
         # note that we get some entropy from the time
         # so different epochs get different data augmentations
         np.random.seed((hash(time())
-                        + (self.rank * torch.utils.data.get_worker_info().num_workers
+                        + (settings.RANK * torch.utils.data.get_worker_info().num_workers
                            + worker_id)) % 2**32)
-
-        # since this is called in a separate process,
-        # we need to get a consistent view of the settings
-        startup.main(self.mode)
 #}}}
 
 class DataLoader(torch_DataLoader) :
@@ -185,11 +184,11 @@ class DataLoader(torch_DataLoader) :
     A torch-compatible way to retrieve the data
     """
 #{{{
-    def __init__(self, mode, rank, world_size) :
-        self.dataset = Dataset(mode, rank, world_size)
-        self.worker_pool = WorkerPool(mode, rank, world_size)
+    def __init__(self, mode) :
+        self.dataset = Dataset(mode)
+        self.worker_pool = WorkerPool(mode)
         super().__init__(self.dataset,
-                         collate_fn=Batch(rank),
+                         collate_fn=Batch,
                          # the workers are implemented as separate processes,
                          # so we need to make sure they seed a consistent view of the configuration options
                          worker_init_fn=self.worker_pool.init_worker,

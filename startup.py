@@ -1,8 +1,11 @@
 from sys import argv
+import os
 import os.path
 import warnings
 import argparse
 import numpy as np
+
+import torch
 
 import settings
 from settings import ToSet
@@ -23,8 +26,6 @@ class ArgParser :
                                  help='settings.BATCH_SIZE : integer, real batch size is times num_GPUs')
         self.parser.add_argument('--naugment', type=int,
                                  help='settings.N_AUGMENTATIONS : integer, number of augmentations per epoch')
-        self.parser.add_argument('--mpi', action='store_true',
-                                 help='settings.MPI : if set, run in multi-node mode')
 
 
     def __init__(self) :
@@ -46,8 +47,8 @@ class ArgParser :
             settings.BATCH_SIZE = settings.BATCH_SIZE.set(args.batchsize)
         if hasattr(args, 'naugment') :
             settings.N_AUGMENTATIONS = settings.N_AUGMENTATIONS.set(args.naugment)
-        settings.MPI = settings.MPI.set(args.mpi)
 #}}}
+
 
 def populate_settings_from_cl() :
     """
@@ -57,6 +58,7 @@ def populate_settings_from_cl() :
     args = ArgParser()
     args.parse_and_set()
 #}}}
+
 
 def load_normalizations() :
     """
@@ -90,6 +92,51 @@ def load_normalizations() :
             = lambda x, m=mean, s=stddev : (x-m) / s
 #}}}
 
+
+def set_mp_env(rank) :
+    """
+    sets all variables referring to multiprocessing which can be inferred
+    without knowledge of a specific rank
+
+    and if rank is not None also the others
+
+    rank refers to the `local rank', i.e. the one within a specific MPI process
+    """
+#{{{
+    try :
+        settings.MPI_WORLD_SIZE = settings.MPI_WORLD_SIZE.set(int(os.environ['SLURM_NTASKS']))
+        settings.MPI_RANK = settings.MPI_RANK.set(int(os.environ['SLURM_PROCID']))
+        settings.MPI_NODENAME = settings.MPI_NODENAME.set(os.environ['SLURMD_NODENAME'])
+    except KeyError :
+        settings.MPI_WORLD_SIZE = settings.MPI_WORLD_SIZE.set()
+        settings.MPI_RANK = settings.MPI_RANK.set()
+        settings.MPI_NODENAME = settings.MPI_NODENAME.set()
+
+    if settings.MPI_WORLD_SIZE != 1 :
+        # we have multiple nodes, need to figure out which one is the root
+        from mpi4py import MPI
+        comm = MPI.COMM_WORLD
+        assert comm.Get_rank() == settings.MPI_RANK
+        if settings.MPI_RANK == 0 :
+            root_name = settings.NODENAME
+        else :
+            root_name = None
+        root_name = comm.bcast(root_name, root=0)
+        settings.MASTER_ADDR = settings.MASTER_ADDR.set(root_name)
+
+    # we assume that each process has the same number of GPUs available
+    settings.NUM_GPUS = settings.NUM_GPUS.set(torch.cuda.device_count())
+    settings.WORLD_SIZE = settings.WORLD_SIZE.set(settings.NUM_GPUS * settings.MPI_WORLD_SIZE)
+
+    if rank is not None :
+        # we are in a specific process
+        settings.LOCAL_RANK = settings.LOCAL_RANK.set(rank)
+        settings.RANK = settings.RANK.set(settings.MPI_RANK * settings.NUM_GPUS + settings.LOCAL_RANK)
+        settings.DEVICE_IDX = settings.DEVICE_IDX.set(settings.RANK % settings.NUM_GPUS)
+        assert settings.LOCAL_RANK == settings.DEVICE_IDX
+#}}}
+
+
 def set_filenames() :
     """
     populates the input/output filenames
@@ -98,6 +145,7 @@ def set_filenames() :
     settings.LOSS_FILE = settings.LOSS_FILE.set(os.path.join(settings.RESULTS_PATH, 'loss_%s.npz'%settings.ID))
     settings.MODEL_FILE = settings.MODEL_FILE.set(os.path.join(settings.RESULTS_PATH, 'model_%s.pt'%settings.ID))
 #}}}
+
 
 def set_remaining() :
     """
@@ -140,16 +188,17 @@ def set_remaining() :
             pass
 #}}}
 
-def main(mode) :
+
+def main(mode, rank=None) :
     """
     this is the only function that should be called from this module.
     `mode' refers to the global mode of execution.
+
+    `rank' is the process-local rank (i.e. within an MPI process)
     """
     assert isinstance(mode, data_loader.DataModes)
 
-    # avoid double initialization, this would otherwise happen in the mpi mode
-    if settings.STARTUP_CALLED :
-        return
+    assert not settings.STARTUP_CALLED
 
     # tell anyone using the settings module that it
     # is in the correct state
@@ -162,6 +211,7 @@ def main(mode) :
     settings.MODE = settings.MODE.set(mode)
 
     populate_settings_from_cl()
+    set_mp_env(rank)
     set_filenames()
     load_normalizations()
     set_remaining()

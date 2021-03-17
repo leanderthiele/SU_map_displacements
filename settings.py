@@ -44,9 +44,6 @@ STARTUP_CALLED = False
 # whether to give some more detailed print output
 VERBOSE = True
 
-# whether to run in multi-node mode
-MPI = ToSet(False)
-
 # the global mode of execution
 MODE = ToSet(None)
 
@@ -69,7 +66,8 @@ H_UNITS = False
 DELTA_L_BOUNDS = [0.0, 0.3]
 
 # should be somewhat larger than the largest box size that will be encountered
-# (precise value is not super important)
+# (precise value is not super important,
+#  this is just to normalize the target displacement field within [-1,1])
 MAX_BOX_SIZE = 25000 / 0.6
 
 # specify the redshift that we're working at using this switch
@@ -163,3 +161,19 @@ LOSS_FILE = ToSet(RESULTS_PATH+'/loss.npz')
 
 # where to store the model during training
 MODEL_FILE = ToSet(RESULTS_PATH+'/model.pt')
+
+# multiprocessing environment -- these can be set from anywhere
+MPI_WORLD_SIZE = ToSet(1)
+MPI_RANK = ToSet(0)
+MPI_NODENAME = ToSet('localhost')
+
+MASTER_ADDR = ToSet('localhost')
+MASTER_PORT = '12355'
+NUM_GPUS = ToSet()
+WORLD_SIZE = ToSet()
+
+# multiprocessing environment -- these can be set only on a specific rank
+# the default values are not usable
+LOCAL_RANK = ToSet(-1) # refers to rank within one MPI process
+RANK = ToSet(-1) # refers to rank within the entire team
+DEVICE_IDX = ToSet(-1)
