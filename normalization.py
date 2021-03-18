@@ -5,6 +5,18 @@ import settings
 from data_loader import DataModes, Dataset
 from data_item import DataItem
 
+# FIXME
+#
+# This script is currently broken, because it cannot be run
+# on a CPU-only node.
+# The reason is that the Dataset class uses some of the variables
+# that are set during startup.main(), which we definitely don't want
+# to call here.
+# 
+# A possible solution would be to have optional `rank', `world_size'
+# arguments in Dataset (or simply `for_normalization')
+
+
 DENSITY_FACTOR = 10.0
 
 def normalization(mode) :
@@ -28,7 +40,7 @@ def normalization(mode) :
 #{{{
     assert settings.USE_DENSITY # for convienience
 
-    dataset = Dataset(mode, 0, 1) # we do this in a single process, so we set rank and world_size to 0, 1
+    dataset = Dataset(mode) # we do this in a single process, so we set rank and world_size to 0, 1
 
     # make a first pass through the data, computing the variances
     # note that we're using the fact that mean(displacement) ~ 0

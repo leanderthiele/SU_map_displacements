@@ -14,10 +14,10 @@ from data_loader import DataModes, Batch, DataLoader
 from network import Network
 from train_utils import Loss, Optimizer
 
-def do_diagnostic_output(training_loss, validation_loss, Nepochs, epoch_len, world_size) :
+def do_diagnostic_output(training_loss, validation_loss, Nepochs, epoch_len) :
 #{{{
-    training_times = np.linspace(0, Nepochs, num=Nepochs*epoch_len).repeat(world_size)
-    validation_times = np.linspace(1, Nepochs, num=Nepochs).repeat(world_size)
+    training_times = np.linspace(0, Nepochs, num=Nepochs*epoch_len).repeat(settings.WORLD_SIZE)
+    validation_times = np.linspace(1, Nepochs, num=Nepochs).repeat(settings.WORLD_SIZE)
 
     np.savez(settings.LOSS_FILE, training_times=training_times, validation_times=validation_times,
                                  training_loss=np.sqrt(training_loss),
@@ -48,6 +48,7 @@ def load_model(model, rank) :
 
 def setup_process(rank) :
     # to be called at the beginning of a child process
+    # rank passed is the local rank
 #{{{
     # new process needs to get a consistent view of the settings
     startup.main(DataModes.TRAINING, rank)
@@ -55,7 +56,11 @@ def setup_process(rank) :
     os.environ['MASTER_ADDR'] = settings.MASTER_ADDR
     os.environ['MASTER_PORT'] = settings.MASTER_PORT
 
-    torch.distributed.init_process_group('nccl', rank=settings.RANK, world_size=settings.WORLD_SIZE)
+    # note : the `rank' kw here is NOT equal the `rank' argument, since it refers
+    #        to the entire world
+    torch.distributed.init_process_group('nccl', rank=settings.RANK,
+                                         world_size=settings.WORLD_SIZE,
+                                         init_method=f'file://{settings.SHARE_FILE}')
 
     torch.cuda.set_device(settings.DEVICE_IDX)
 #}}}
@@ -92,7 +97,7 @@ def training_process(rank) :
 #{{{
     setup_process(rank)
 
-    model = Network().to(settings.DEVICE_IDX).to_ddp(settings.RANK, settings.WORLD_SIZE)
+    model = Network().to(settings.DEVICE_IDX).to_ddp()
     
     loss_fn = Loss()
     optimizer = Optimizer(model.parameters())
@@ -109,7 +114,7 @@ def training_process(rank) :
 
     # keep track of whether we encounter infinities / nans
     global_inf = False
-    inf_list = [False, ] * world_size
+    inf_list = [False, ] * settings.WORLD_SIZE
 
     # initialize outside the epoch loop so we can carry samples over from one
     # epoch to the other if a batch is incomplete
@@ -118,7 +123,7 @@ def training_process(rank) :
 
     for epoch in range(settings.EPOCHS) :
         
-        if rank == 0 :
+        if settings.RANK == 0 :
             start_time_epoch = time()
         # create the variables we will later share with the root thread
         # note that it is useful to set the training loss to an impossible state initially
@@ -132,7 +137,7 @@ def training_process(rank) :
         # loop once through the training data
         for t, data in enumerate(training_loader) :
             
-            if rank == 0 :
+            if settings.RANK == 0 :
                 start_time_sample = time()
 
             idx_in_batch += 1
@@ -170,7 +175,7 @@ def training_process(rank) :
             else :
                 if this_inf :
                     # we encountered infinity/nan and should throw this loss away
-                    print('encountered invalid loss in rank %d'%rank)
+                    print(f'encountered invalid loss in rank {settings.RANK}')
                 else :
                     # update gradients asynchronously in those processes that did not have a problem
                     with model.no_sync() :
@@ -182,7 +187,7 @@ def training_process(rank) :
                 optimizer.zero_grad()
                 idx_in_batch = 0
             
-            if rank == 0 and settings.VERBOSE :
+            if settings.RANK == 0 and settings.VERBOSE :
                 print('\tSample %.3d / %d finished in epoch %d, '\
                       'took %f seconds'%(t+1, len(training_loader), epoch+1, time()-start_time_sample))
 
@@ -204,8 +209,8 @@ def training_process(rank) :
         validation_loss /= len(validation_loader)
 
         # buffers for gathering
-        all_training_loss = [np.empty(0), ] * world_size
-        all_validation_loss = [0.0, ] * world_size
+        all_training_loss = [np.empty(0), ] * settings.WORLD_SIZE
+        all_validation_loss = [0.0, ] * settings.WORLD_SIZE
 
         # gather the loss values from all processes
         # note that only the rank=0 process actually needs them, but gather_object is not supported
@@ -213,7 +218,7 @@ def training_process(rank) :
         torch.distributed.all_gather_object(all_training_loss, training_loss)
         torch.distributed.all_gather_object(all_validation_loss, validation_loss)
 
-        if is_output_responsible(rank, world_size) :
+        if is_output_responsible() :
             # interleave the training loss arrays so the losses are temporally correctly ordered
             all_training_loss = np.vstack(all_training_loss).reshape((-1,), order='F')
             all_validation_loss = np.array(all_validation_loss)
@@ -224,11 +229,11 @@ def training_process(rank) :
                                                          all_validation_loss))
 
             do_diagnostic_output(all_epochs_training_loss, all_epochs_validation_loss,
-                                 epoch+1, len(training_loader), world_size)
+                                 epoch+1, len(training_loader))
 
             save_model(model)
 
-        if rank == 0 :
+        if settings.RANK == 0 :
             print('Epoch %d finished, took %f seconds'%(epoch+1, time()-start_time_epoch))
 
     # we're done, let's release resources
@@ -243,8 +248,12 @@ def main() :
 #{{{
     startup.main(DataModes.TRAINING)
 
-    torch_mp.spawn(training_process,
-                   nprocs=settings.NUM_GPUS)
+    if settings.MPI_WORLD_SIZE == 1 :
+        torch_mp.spawn(training_process,
+                       nprocs=settings.NUM_GPUS)
+    else :
+        assert settings.NUM_GPUS == 1
+        training_process(0)
 #}}}
 
 if __name__ == '__main__' :

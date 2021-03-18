@@ -169,8 +169,10 @@ MPI_NODENAME = ToSet('localhost')
 
 MASTER_ADDR = ToSet('localhost')
 MASTER_PORT = '12355'
-NUM_GPUS = ToSet()
-WORLD_SIZE = ToSet()
+NUM_GPUS = ToSet(None)
+WORLD_SIZE = ToSet(None)
+
+SHARE_FILE = ToSet(None)
 
 # multiprocessing environment -- these can be set only on a specific rank
 # the default values are not usable

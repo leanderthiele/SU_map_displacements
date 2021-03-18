@@ -2,6 +2,7 @@ from sys import argv
 import os
 import os.path
 import warnings
+import tempfile
 import argparse
 import numpy as np
 
@@ -43,6 +44,9 @@ class ArgParser :
 
         if hasattr(args, 'id') :
             settings.ID = settings.ID.set(args.id)
+        else :
+            # this is a special case, as we need the ID for other things
+            settings.ID = settings.ID.set()
         if hasattr(args, 'batchsize') :
             settings.BATCH_SIZE = settings.BATCH_SIZE.set(args.batchsize)
         if hasattr(args, 'naugment') :
@@ -104,9 +108,10 @@ def set_mp_env(rank) :
     """
 #{{{
     try :
-        settings.MPI_WORLD_SIZE = settings.MPI_WORLD_SIZE.set(int(os.environ['SLURM_NTASKS']))
-        settings.MPI_RANK = settings.MPI_RANK.set(int(os.environ['SLURM_PROCID']))
-        settings.MPI_NODENAME = settings.MPI_NODENAME.set(os.environ['SLURMD_NODENAME'])
+        settings.MPI_WORLD_SIZE = settings.MPI_WORLD_SIZE.set(int(os.environ['OMPI_COMM_WORLD_SIZE']))
+        settings.MPI_RANK = settings.MPI_RANK.set(int(os.environ['OMPI_COMM_WORLD_RANK']))
+        # note that this one should go last
+        settings.MPI_NODENAME = settings.MPI_NODENAME.set(os.environ['HOSTNAME'])
     except KeyError :
         settings.MPI_WORLD_SIZE = settings.MPI_WORLD_SIZE.set()
         settings.MPI_RANK = settings.MPI_RANK.set()
@@ -118,7 +123,7 @@ def set_mp_env(rank) :
         comm = MPI.COMM_WORLD
         assert comm.Get_rank() == settings.MPI_RANK
         if settings.MPI_RANK == 0 :
-            root_name = settings.NODENAME
+            root_name = settings.MPI_NODENAME
         else :
             root_name = None
         root_name = comm.bcast(root_name, root=0)
@@ -134,6 +139,19 @@ def set_mp_env(rank) :
         settings.RANK = settings.RANK.set(settings.MPI_RANK * settings.NUM_GPUS + settings.LOCAL_RANK)
         settings.DEVICE_IDX = settings.DEVICE_IDX.set(settings.RANK % settings.NUM_GPUS)
         assert settings.LOCAL_RANK == settings.DEVICE_IDX
+
+    # ID must have been set before!
+    settings.SHARE_FILE = settings.SHARE_FILE.set('/scratch/gpfs/lthiele/torch_share_files/'
+                                                  + settings.ID)
+
+    if settings.VERBOSE and rank is not None :
+        # give some diagnostic output
+        print(f'On NODENAME {settings.MPI_NODENAME}: '\
+              f'On MPI_RANK {settings.MPI_RANK+1} / {settings.MPI_WORLD_SIZE}: '\
+              f'On LOCAL_RANK {settings.LOCAL_RANK+1} / {settings.NUM_GPUS}: '\
+              f'RANK = {settings.RANK}, '\
+              f'DEVICE_IDX = {settings.DEVICE_IDX}, '\
+              f'MASTER_ADDR = {settings.MASTER_ADDR}')
 #}}}
 
 

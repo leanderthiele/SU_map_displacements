@@ -87,10 +87,10 @@ class Network(nn.Module) :
         return x
 
     
-    def to_ddp(self, rank, world_size) :
+    def to_ddp(self) :
         # turns the network into a parallel module
 
         # we need to convert all batch normalizations into synchronized ones!
         return DistributedDataParallel(nn.SyncBatchNorm.convert_sync_batchnorm(self),
-                                       device_ids=[0 if settings.MPI else rank])
+                                       device_ids=[settings.DEVICE_IDX])
 #}}}
