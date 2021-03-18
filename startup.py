@@ -107,6 +107,14 @@ def set_mp_env(rank) :
     rank refers to the `local rank', i.e. the one within a specific MPI process
     """
 #{{{
+    # TODO
+    # also read OMPI_COMM_WORLD_LOCAL_SIZE and OMPI_COMM_WORLD_NODE_RANK
+    # and use these to figure out the device index
+    # (binding doesn't seem to work)
+    #
+    # Alternatively: go back to srun and use gpu-bind --> Actually this is better!
+
+
     try :
         settings.MPI_WORLD_SIZE = settings.MPI_WORLD_SIZE.set(int(os.environ['OMPI_COMM_WORLD_SIZE']))
         settings.MPI_RANK = settings.MPI_RANK.set(int(os.environ['OMPI_COMM_WORLD_RANK']))
