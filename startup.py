@@ -97,7 +97,7 @@ def load_normalizations() :
 #}}}
 
 
-def set_mp_env(rank) :
+def set_mp_env(rank=None) :
     """
     sets all variables referring to multiprocessing which can be inferred
     without knowledge of a specific rank
@@ -105,24 +105,47 @@ def set_mp_env(rank) :
     and if rank is not None also the others
 
     rank refers to the `local rank', i.e. the one within a specific MPI process
+
+    We write this function flexibly enough to accomodate the following cases:
+
+        1) we are seeing 1 GPU (in that case, our life is easy)
+           SINGLEGPU
+                In that case, we assign this GPU to our rank
+                and launch training without spawning
+                --> assert rank == 0 if set
+
+        2) we are seeing multiple GPUs, and there are multiple ranks on our node
+           MULTIGPU_MULTIRANK
+                In that case, we assign each rank one of the GPUs
+                and launch training without spawning
+                --> assert rank == 0 if set
+
+        3) we are seeing multiple GPUs, and there is one rank on our node
+           MULTIGPU_SINGLERANK
+                In that case, we launch training with spawning
+                and assign each sub-process one of the GPUs
+           [this case may be impossible to run on multiple nodes because OpenMPI does not like
+            it if we fork within one process.
+            However, in case we're using only one node this should be the preferred setup.]
     """
 #{{{
-    # TODO
-    # also read OMPI_COMM_WORLD_LOCAL_SIZE and OMPI_COMM_WORLD_NODE_RANK
-    # and use these to figure out the device index
-    # (binding doesn't seem to work)
-    #
-    # Alternatively: go back to srun and use gpu-bind --> Actually this is better!
-
-
     try :
-        settings.MPI_WORLD_SIZE = settings.MPI_WORLD_SIZE.set(int(os.environ['OMPI_COMM_WORLD_SIZE']))
-        settings.MPI_RANK = settings.MPI_RANK.set(int(os.environ['OMPI_COMM_WORLD_RANK']))
+        settings.MPI_WORLD_SIZE = settings.MPI_WORLD_SIZE\
+            .set(int(os.environ['OMPI_COMM_WORLD_SIZE']))
+        settings.MPI_RANK = settings.MPI_RANK\
+            .set(int(os.environ['OMPI_COMM_WORLD_RANK']))
+        settings.MPI_LOCAL_WORLD_SIZE = settings.MPI_LOCAL_WORLD_SIZE\
+            .set(int(os.environ['OMPI_COMM_WORLD_LOCAL_SIZE']))
+        settings.MPI_LOCAL_RANK = settings.MPI_LOCAL_RANK\
+            .set(int(os.environ['OMPI_COMM_WORLD_NODE_RANK']))
         # note that this one should go last
-        settings.MPI_NODENAME = settings.MPI_NODENAME.set(os.environ['HOSTNAME'])
+        settings.MPI_NODENAME = settings.MPI_NODENAME\
+            .set(os.environ['HOSTNAME'])
     except KeyError :
         settings.MPI_WORLD_SIZE = settings.MPI_WORLD_SIZE.set()
         settings.MPI_RANK = settings.MPI_RANK.set()
+        settings.MPI_LOCAL_WORLD_SIZE = settings.MPI_LOCAL_WORLD_SIZE.set()
+        settings.MPI_LOCAL_RANK = settings.MPI_LOCAL_RANK.set()
         settings.MPI_NODENAME = settings.MPI_NODENAME.set()
 
     if settings.MPI_WORLD_SIZE != 1 :
@@ -138,15 +161,47 @@ def set_mp_env(rank) :
         settings.MASTER_ADDR = settings.MASTER_ADDR.set(root_name)
 
     # we assume that each process has the same number of GPUs available
-    settings.NUM_GPUS = settings.NUM_GPUS.set(torch.cuda.device_count())
-    settings.WORLD_SIZE = settings.WORLD_SIZE.set(settings.NUM_GPUS * settings.MPI_WORLD_SIZE)
+    settings.VISIBLE_GPUS = settings.VISIBLE_GPUS.set(torch.cuda.device_count())
+
+    if settings.VISIBLE_GPUS == 1 :
+        assert (rank is None) or rank == 0
+        settings.MPI_ENV_TYPE = settings.MPI_ENV_TYPE.set(settings.MPIEnvTypes.SINGLEGPU)
+        settings.WORLD_SIZE = settings.WORLD_SIZE.set(settings.MPI_WORLD_SIZE)
+
+    elif settings.VISIBLE_GPUS > 1 and settings.MPI_LOCAL_WORLD_SIZE > 1 :
+        assert (rank is None) or rank == 0
+        assert settings.MPI_LOCAL_WORLD_SIZE <= settings.VISIBLE_GPUS
+        settings.MPI_ENV_TYPE = settings.MPI_ENV_TYPE.set(settings.MPIEnvTypes.MULTIGPU_MULTIRANK)
+        settings.WORLD_SIZE = settings.WORLD_SIZE.set(settings.MPI_WORLD_SIZE)
+
+    elif settings.VISIBLE_GPUS > 1 and settings.MPI_LOCAL_WORLD_SIZE == 1 :
+        assert settings.MPI_LOCAL_RANK == 0
+        settings.MPI_ENV_TYPE = settings.MPI_ENV_TYPE.set(settings.MPIEnvTypes.MULTIGPU_SINGLERANK)
+        settings.WORLD_SIZE = settings.WORLD_SIZE.set(settings.VISIBLE_GPUS * settings.MPI_WORLD_SIZE)
+
+    else :
+        raise RuntimeError('Invalid MPI environment')
 
     if rank is not None :
         # we are in a specific process
         settings.LOCAL_RANK = settings.LOCAL_RANK.set(rank)
-        settings.RANK = settings.RANK.set(settings.MPI_RANK * settings.NUM_GPUS + settings.LOCAL_RANK)
-        settings.DEVICE_IDX = settings.DEVICE_IDX.set(settings.RANK % settings.NUM_GPUS)
-        assert settings.LOCAL_RANK == settings.DEVICE_IDX
+
+        if (settings.MPI_ENV_TYPE is settings.MPIEnvTypes.SINGLEGPU) \
+           or (settings.MPI_ENV_TYPE is settings.MPIEnvTypes.MULTIGPU_MULTIRANK) :
+            settings.RANK = settings.RANK.set(settings.MPI_RANK)
+
+        elif settings.MPI_ENV_TYPE is settings.MPIEnvTypes.MULTIGPU_SINGLERANK :
+            settings.RANK = settings.RANK.set(settings.MPI_RANK * settings.VISIBLE_GPUS + settings.LOCAL_RANK)
+
+
+        if settings.MPI_ENV_TYPE is settings.MPIEnvTypes.SINGLEGPU :
+            settings.DEVICE_IDX = settings.DEVICE_IDX.set(0)
+
+        elif settings.MPI_ENV_TYPE is settings.MPIEnvTypes.MULTIGPU_MULTIRANK :
+            settings.DEVICE_IDX = settings.DEVICE_IDX.set(settings.MPI_LOCAL_RANK)
+
+        elif settings.MPI_ENV_TYPE is settings.MPIEnvTypes.MULTIGPU_SINGLERANK :
+            settings.DEVICE_IDX = settings.DEVICE_IDX.set(settings.LOCAL_RANK)
 
     # ID must have been set before!
     settings.SHARE_FILE = settings.SHARE_FILE.set('/scratch/gpfs/lthiele/torch_share_files/'

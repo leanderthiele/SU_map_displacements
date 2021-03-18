@@ -244,15 +244,15 @@ def training_process(rank) :
 def main() :
     """
     launches a couple of training_process's
+    (or one if each MPI_RANK gets its own GPU)
     """
 #{{{
     startup.main(DataModes.TRAINING)
 
-    if settings.MPI_WORLD_SIZE == 1 :
+    if settings.MPI_ENV_TYPE is settings.MPIEnvTypes.MULTIGPU_SINGLERANK :
         torch_mp.spawn(training_process,
-                       nprocs=settings.NUM_GPUS)
+                       nprocs=settings.VISIBLE_GPUS)
     else :
-        assert settings.NUM_GPUS == 1
         training_process(0)
 #}}}
 

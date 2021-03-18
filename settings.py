@@ -1,3 +1,4 @@
+from enum import Enum, auto
 
 """
 This file contains some global switches etc. that we'd like to
@@ -165,12 +166,22 @@ MODEL_FILE = ToSet(RESULTS_PATH+'/model.pt')
 # multiprocessing environment -- these can be set from anywhere
 MPI_WORLD_SIZE = ToSet(1)
 MPI_RANK = ToSet(0)
+MPI_LOCAL_WORLD_SIZE = ToSet(1)
+MPI_LOCAL_RANK = ToSet(0)
 MPI_NODENAME = ToSet('localhost')
+
+# categorize the type of environment we're in
+class MPIEnvTypes(Enum) :
+    SINGLEGPU = auto() # there's one GPU visible
+    MULTIGPU_MULTIRANK = auto() # there are multiple GPUs visible and there are multiple ranks on this node
+    MULTIGPU_SINGLERANK = auto() # there are multiple GPUs visible and there is a single rank on this node
+
+MPI_ENV_TYPE = ToSet(None)
 
 MASTER_ADDR = ToSet('localhost')
 MASTER_PORT = '12355'
-NUM_GPUS = ToSet(None)
-WORLD_SIZE = ToSet(None)
+VISIBLE_GPUS = ToSet(None)
+WORLD_SIZE = ToSet(None) # size of the entire team
 
 SHARE_FILE = ToSet(None)
 
