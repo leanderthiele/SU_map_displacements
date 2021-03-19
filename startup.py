@@ -97,14 +97,10 @@ def load_normalizations() :
 #}}}
 
 
-def set_mp_env(rank=None) :
+def set_mp_env() :
     """
     sets all variables referring to multiprocessing which can be inferred
     without knowledge of a specific rank
-
-    and if rank is not None also the others
-
-    rank refers to the `local rank', i.e. the one within a specific MPI process
 
     We write this function flexibly enough to accomodate the following cases:
 
@@ -164,12 +160,10 @@ def set_mp_env(rank=None) :
     settings.VISIBLE_GPUS = settings.VISIBLE_GPUS.set(torch.cuda.device_count())
 
     if settings.VISIBLE_GPUS == 1 :
-        assert (rank is None) or rank == 0
         settings.MPI_ENV_TYPE = settings.MPI_ENV_TYPE.set(settings.MPIEnvTypes.SINGLEGPU)
         settings.WORLD_SIZE = settings.WORLD_SIZE.set(settings.MPI_WORLD_SIZE)
 
     elif settings.VISIBLE_GPUS > 1 and settings.MPI_LOCAL_WORLD_SIZE > 1 :
-        assert (rank is None) or rank == 0
         assert settings.MPI_LOCAL_WORLD_SIZE <= settings.VISIBLE_GPUS
         settings.MPI_ENV_TYPE = settings.MPI_ENV_TYPE.set(settings.MPIEnvTypes.MULTIGPU_MULTIRANK)
         settings.WORLD_SIZE = settings.WORLD_SIZE.set(settings.MPI_WORLD_SIZE)
@@ -182,39 +176,51 @@ def set_mp_env(rank=None) :
     else :
         raise RuntimeError('Invalid MPI environment')
 
-    if rank is not None :
-        # we are in a specific process
-        settings.LOCAL_RANK = settings.LOCAL_RANK.set(rank)
-
-        if (settings.MPI_ENV_TYPE is settings.MPIEnvTypes.SINGLEGPU) \
-           or (settings.MPI_ENV_TYPE is settings.MPIEnvTypes.MULTIGPU_MULTIRANK) :
-            settings.RANK = settings.RANK.set(settings.MPI_RANK)
-
-        elif settings.MPI_ENV_TYPE is settings.MPIEnvTypes.MULTIGPU_SINGLERANK :
-            settings.RANK = settings.RANK.set(settings.MPI_RANK * settings.VISIBLE_GPUS + settings.LOCAL_RANK)
-
-
-        if settings.MPI_ENV_TYPE is settings.MPIEnvTypes.SINGLEGPU :
-            settings.DEVICE_IDX = settings.DEVICE_IDX.set(0)
-
-        elif settings.MPI_ENV_TYPE is settings.MPIEnvTypes.MULTIGPU_MULTIRANK :
-            settings.DEVICE_IDX = settings.DEVICE_IDX.set(settings.MPI_LOCAL_RANK)
-
-        elif settings.MPI_ENV_TYPE is settings.MPIEnvTypes.MULTIGPU_SINGLERANK :
-            settings.DEVICE_IDX = settings.DEVICE_IDX.set(settings.LOCAL_RANK)
-
     # ID must have been set before!
     settings.SHARE_FILE = settings.SHARE_FILE.set('/scratch/gpfs/lthiele/torch_share_files/'
                                                   + settings.ID)
 
-    if settings.VERBOSE and rank is not None :
+#}}}
+
+
+def set_mp_env_for_rank(rank) :
+#{{{
+    assert not settings.THIS_RANK_SET
+
+    if (settings.MPI_ENV_TYPE is settings.MPIEnvTypes.SINGLEGPU) \
+       or (settings.MPI_ENV_TYPE is settings.MPIEnvTypes.MULTIGPU_MULTIRANK) :
+        assert rank == 0
+
+    # we are in a specific process
+    settings.LOCAL_RANK = rank
+
+    if (settings.MPI_ENV_TYPE is settings.MPIEnvTypes.SINGLEGPU) \
+       or (settings.MPI_ENV_TYPE is settings.MPIEnvTypes.MULTIGPU_MULTIRANK) :
+        settings.RANK = settings.MPI_RANK
+
+    elif settings.MPI_ENV_TYPE is settings.MPIEnvTypes.MULTIGPU_SINGLERANK :
+        settings.RANK = settings.MPI_RANK * settings.VISIBLE_GPUS + settings.LOCAL_RANK
+
+
+    if settings.MPI_ENV_TYPE is settings.MPIEnvTypes.SINGLEGPU :
+        settings.DEVICE_IDX = 0
+
+    elif settings.MPI_ENV_TYPE is settings.MPIEnvTypes.MULTIGPU_MULTIRANK :
+        settings.DEVICE_IDX = settings.MPI_LOCAL_RANK
+
+    elif settings.MPI_ENV_TYPE is settings.MPIEnvTypes.MULTIGPU_SINGLERANK :
+        settings.DEVICE_IDX = settings.LOCAL_RANK
+
+    if settings.VERBOSE :
         # give some diagnostic output
         print(f'On NODENAME {settings.MPI_NODENAME}: '\
-              f'On MPI_RANK {settings.MPI_RANK+1} / {settings.MPI_WORLD_SIZE}: '\
-              f'On LOCAL_RANK {settings.LOCAL_RANK+1} / {settings.NUM_GPUS}: '\
+              f'On MPI_RANK {settings.MPI_RANK+1}: '\
+              f'On LOCAL_RANK {settings.LOCAL_RANK+1}: '\
               f'RANK = {settings.RANK}, '\
               f'DEVICE_IDX = {settings.DEVICE_IDX}, '\
               f'MASTER_ADDR = {settings.MASTER_ADDR}')
+
+    settings.THIS_RANK_SET = True
 #}}}
 
 
@@ -279,12 +285,16 @@ def main(mode, rank=None) :
     """
     assert isinstance(mode, data_loader.DataModes)
 
-    assert not settings.STARTUP_CALLED
+    if settings.STARTUP_CALLED :
 
-    # tell anyone using the settings module that it
-    # is in the correct state
-    # (all global variables have been updated)
-    settings.STARTUP_CALLED = True
+        if rank is not None :
+            # this is the case when the main process has called startup
+            # without a specific rank and then the training process
+            # calls it again with knowledge of its rank, but without spawning
+            assert rank == 0
+            set_mp_env_for_rank(rank)
+
+        return
 
     # this should be called right at the beginning so subsequent
     # action can make use of this information if necessary
@@ -292,7 +302,14 @@ def main(mode, rank=None) :
     settings.MODE = settings.MODE.set(mode)
 
     populate_settings_from_cl()
-    set_mp_env(rank)
+    set_mp_env()
+    if rank is not None :
+        set_mp_env_for_rank(rank)
     set_filenames()
     load_normalizations()
     set_remaining()
+
+    # tell anyone using the settings module that it
+    # is in the correct state
+    # (all global variables have been updated)
+    settings.STARTUP_CALLED = True

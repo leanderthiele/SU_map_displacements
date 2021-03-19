@@ -132,7 +132,6 @@ class Batch :
         assert torch.min(self.targets).item() >= -1.0
         assert torch.max(self.targets).item() <= +1.0
 
-        return self
 
     def get_on_device(self) :
         return self.inputs.to(settings.DEVICE_IDX, non_blocking=True), \

@@ -114,7 +114,7 @@ BATCH_SIZE = ToSet(1)
 #      Each needs about 600M, which limits our options quite a bit.
 #      However, not having workers degrades GPU utilization
 #      I saw something on the internet about this, we should fix this!
-DATALOADER_ARGS = dict(batch_size=1,
+DATALOADER_ARGS = dict(batch_size=2,
                        shuffle=True,
                        num_workers=1,
                        pin_memory=True,
@@ -187,6 +187,10 @@ SHARE_FILE = ToSet(None)
 
 # multiprocessing environment -- these can be set only on a specific rank
 # the default values are not usable
-LOCAL_RANK = ToSet(-1) # refers to rank within one MPI process
-RANK = ToSet(-1) # refers to rank within the entire team
-DEVICE_IDX = ToSet(-1)
+# Note that these are special in that we can't make them instances of ToSet because
+# otherwise they'd be set to default in the main thread but then the training process
+# wouldn't be able to override them (no .set method)
+THIS_RANK_SET = False
+LOCAL_RANK = -1 # refers to rank within one MPI process
+RANK = -1 # refers to rank within the entire team
+DEVICE_IDX = -1

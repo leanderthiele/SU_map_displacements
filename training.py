@@ -50,6 +50,10 @@ def setup_process(rank) :
     # to be called at the beginning of a child process
     # rank passed is the local rank
 #{{{
+    # FIXME debugging
+    print(f'setup_process on MPI_RANK {settings.MPI_RANK}')
+
+
     # new process needs to get a consistent view of the settings
     startup.main(DataModes.TRAINING, rank)
 
@@ -58,7 +62,8 @@ def setup_process(rank) :
 
     # note : the `rank' kw here is NOT equal the `rank' argument, since it refers
     #        to the entire world
-    torch.distributed.init_process_group('nccl', rank=settings.RANK,
+    torch.distributed.init_process_group('nccl',
+                                         rank=settings.RANK,
                                          world_size=settings.WORLD_SIZE,
                                          init_method=f'file://{settings.SHARE_FILE}')
 
@@ -125,6 +130,7 @@ def training_process(rank) :
         
         if settings.RANK == 0 :
             start_time_epoch = time()
+
         # create the variables we will later share with the root thread
         # note that it is useful to set the training loss to an impossible state initially
         # because we can catch bugs more easily
