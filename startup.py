@@ -27,6 +27,14 @@ class ArgParser :
                                  help='settings.BATCH_SIZE : integer, real batch size is times num_GPUs')
         self.parser.add_argument('--naugment', type=int,
                                  help='settings.N_AUGMENTATIONS : integer, number of augmentations per epoch')
+        self.parser.add_argument('--nodensity', action='store_true',
+                                 help='~ settings.USE_DENSITY : disables the use of the density field as an additional channel')
+        self.parser.add_argument('--nlayers', type=int,
+                                 help='settings.DEFAULT_NLAYERS : integer, typical number of layers in a block')
+        self.parser.add_argument('--nlevels', type=int,
+                                 help='settings.NLEVELS : integer, number of UNet levels')
+        self.parser.add_argument('--learningrate', type=float,
+                                 help='settings.OPTIMIZER_ARGS[lr] : float, learning rate')
 
 
     def __init__(self) :
@@ -47,10 +55,19 @@ class ArgParser :
         else :
             # this is a special case, as we need the ID for other things
             settings.ID = settings.ID.set()
+
         if hasattr(args, 'batchsize') :
             settings.BATCH_SIZE = settings.BATCH_SIZE.set(args.batchsize)
         if hasattr(args, 'naugment') :
             settings.N_AUGMENTATIONS = settings.N_AUGMENTATIONS.set(args.naugment)
+        if hasattr(args, 'nodensity') :
+            settings.USE_DENSITY = settings.USE_DENSITY.set(not args.nodensity)
+        if hasattr(args, 'nlayers') :
+            settings.DEFAULT_NLAYERS = settings.DEFAULT_NLAYERS.set(args.nlayers)
+        if hasattr(args, 'nlevels') :
+            settings.NLEVELS = settings.NLEVELS.set(args.nlevels)
+        if hasattr(args, 'learningrate') :
+            settings.OPTIMIZER_ARGS['lr'] = settings.OPTIMIZER_ARGS['lr'].set(args.learningrate)
 #}}}
 
 

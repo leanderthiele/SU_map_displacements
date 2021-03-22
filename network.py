@@ -14,11 +14,11 @@ class Network(nn.Module) :
     We use a standard UNet architecture, looking like
 
 
-                       block_in                 {                   }                block_out               collapse
-    input[in_layout] ------------> [in_layout1] {    some levels    } [out_layout1] -----------> out_layout1 --------> output[out_layout]
+                       block_in                 {                   }                block_out                 collapse
+    input[in_layout] ------------> [in_layout1] {    some levels    } [out_layout1] -----------> [out_layout1] --------> output[out_layout]
                                                 {                   }
                                                   -------------->
-                                                   block through
+                                                   block_through
 
     We may want to do something special in the initial and final blocks,
     so we keep them separate from the relatively rigid level structure.
@@ -58,9 +58,9 @@ class Network(nn.Module) :
 
         # construct the levels
         levels = []
-        Nlevels = 5 # note : this is the maximum we can do on our 16 GB cards
-        for ii in range(Nlevels) :
-            levels.append(Level(tmp_layout, channel_factor=4 if ii<2 else 2, N_layers=6))
+        for ii in range(settings.NLEVELS) :
+            levels.append(Level(tmp_layout, channel_factor=4 if ii<2 else 2,
+                                N_layers=settings.DEFAULT_NLAYERS))
             tmp_layout = deepcopy(levels[-1].lower_layout)
         self.levels = nn.ModuleList(levels)
 

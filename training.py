@@ -147,9 +147,6 @@ def training_process(rank) :
             assert isinstance(data, Batch)
 
             inputs, targets, styles = data.get_on_device()
-#            inputs = data.inputs.to(settings.DEVICE_IDX)
-#            targets = data.targets.to(settings.DEVICE_IDX)
-#            styles = data.styles.to(settings.DEVICE_IDX)
 
             # do the forward pass and compute loss
 
@@ -198,6 +195,9 @@ def training_process(rank) :
 
         # set model into evaluation mode
         model.eval()
+
+        if settings.RANK == 0 :
+            start_time_validation = time()
         
         # loop once through the validation data
         with torch.no_grad() :
@@ -213,15 +213,22 @@ def training_process(rank) :
         # normalize (per data item)
         validation_loss /= len(validation_loader)
 
+        if settings.RANK == 0 and settings.VERBOSE :
+            print('\tLoop through validation set took %f seconds'%(time()-start_time_validation))
+
+        if is_output_responsible() :
+            start_time_diagnostic = time()
+
         # buffers for gathering
         all_training_loss = [np.empty(0), ] * settings.WORLD_SIZE
         all_validation_loss = [0.0, ] * settings.WORLD_SIZE
 
         # gather the loss values from all processes
-        # note that only the rank=0 process actually needs them, but gather_object is not supported
-        # when using NCCL
+        # note that only the is_output_responsible() process actually needs them,
+        # but gather_object is not supported when using NCCL
         torch.distributed.all_gather_object(all_training_loss, training_loss)
         torch.distributed.all_gather_object(all_validation_loss, validation_loss)
+
 
         if is_output_responsible() :
             # interleave the training loss arrays so the losses are temporally correctly ordered
@@ -237,6 +244,11 @@ def training_process(rank) :
                                  epoch+1, len(training_loader))
 
             save_model(model)
+
+
+        if is_output_responsible() and settings.VERBOSE :
+            print('\tGathering of losses and diagnostic output took %f seconds'%(time()-start_time_diagnostic))
+
 
         if settings.RANK == 0 :
             print('Epoch %d finished, took %f seconds'%(epoch+1, time()-start_time_epoch))

@@ -58,7 +58,7 @@ ID = ToSet('debug')
 ONLY_FROM_ZERO = True
 
 # wether we want to include the density field as a separate input channel
-USE_DENSITY = True
+USE_DENSITY = ToSet(True)
 
 # whether we want to work in little h-units internally
 H_UNITS = False
@@ -123,13 +123,19 @@ DATASET_SHUFFLING_SEED = 137
 
 # these must be consistent between runs
 NSEEDS_TESTING = 2
-NSEEDS_VALIDATION = 8
+NSEEDS_VALIDATION = 4
 
 # how many data augmentations to do per sample per epoch
 # must be <= 48 and divisible by the number of GPUs
 # (note that all 48 augmentations will still occur if this is set
 #  to less than 48, just not every epoch for every sample)
 N_AUGMENTATIONS = ToSet(4)
+
+# N_layers argument for most blocks (except the collapsing one at the end)
+DEFAULT_NLAYERS = ToSet(6)
+
+# can only increase this if USE_DENSITY=False, otherwise memory runs out
+NLEVELS = ToSet(5)
 
 # number of styles, 1 for delta_L only
 NSTYLES = 1
@@ -146,7 +152,7 @@ DELTA_L_NORMALIZATIONS = ToSet(None)
 EPOCHS = 1000
 
 # note that these are somewhat dependent on the specific optimizer chosen in train_utils.py
-OPTIMIZER_ARGS = dict(lr=1e-3,
+OPTIMIZER_ARGS = dict(lr=ToSet(1e-3),
                       betas=(0.9, 0.999), # TODO according to Paco, this may not be the best choice
                       eps=1e-8, # default value from pytorch docs
                       weight_decay=0.0, # L2 penalty

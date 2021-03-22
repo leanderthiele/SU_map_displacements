@@ -150,7 +150,12 @@ class DataItem :
         assert self.is_augmented
 
         if self.density is None :
-            self.tensor = self.displacement
+            # reflections etc. can induce negative strides in the displacement field,
+            # which torch.as_tensor() cannot handle.
+            # Thus, we make a copy.
+            # Note that in the other case (self.density is not None), the concatenation
+            # produces a contiguous copy automatically
+            self.tensor = self.displacement.copy()
         else :
             self.tensor = np.concatenate((self.density, self.displacement), axis=0)
 
