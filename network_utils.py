@@ -249,6 +249,8 @@ class StyleConv3d(nn.Module) :
         self.style_bias = nn.Parameter(torch.ones(in_chan))  # NOTE: init to 1
 
     def forward(self, x, s, eps=1e-8) :
+        # TODO some of the batch-size dependent stuff could happen in the contructor
+
         N, Cin, *DHWin = x.shape
         C0, C1, *K3 = self.weight.shape
         if self.resample is Resample.UP :
@@ -279,8 +281,13 @@ class StyleConv3d(nn.Module) :
         # LFT : this piece of code is a bit tricky -- what it does is to have a different weight
         #       for each batch, still performing this operation in a single call
         w1 = w1.reshape(N * C0, C1, *K3)
+
+        # LFT : added this, otherwise it doesn't work with non-unity batch sizes
+        #       [self.bias] = [out_chan, ]
+        b1 = self.bias.expand(N, -1).flatten()
+        
         x = x.reshape(1, N * Cin, *DHWin)
-        x = self.conv(x, w1, self.bias, groups=N)
+        x = self.conv(x, w1, b1, groups=N)
         _, _, *DHWout = x.shape
         x = x.reshape(N, Cout, *DHWout)
 
@@ -400,7 +407,7 @@ class Block(nn.Module) :
 
         if self.residual :
             x += xres
-            x /= math.sqrt(2)
+            x /= math.sqrt(2) # against internal variance shift
 
         return x
 #}}}
@@ -460,7 +467,7 @@ class Level(nn.Module) :
         x = self.expand_block(x, s)
         if self.skip :
             x += self.xskip
-            x /= math.sqrt(2)
+            x /= math.sqrt(2) # against internal variance shift
             self.xskip = None
         return x
 #}}}
