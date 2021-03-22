@@ -60,7 +60,7 @@ class Network(nn.Module) :
         levels = []
         Nlevels = 5 # note : this is the maximum we can do on our 16 GB cards
         for ii in range(Nlevels) :
-            levels.append(Level(tmp_layout, channel_factor=4 if ii<2 else 2))
+            levels.append(Level(tmp_layout, channel_factor=4 if ii<2 else 2, N_layers=6))
             tmp_layout = deepcopy(levels[-1].lower_layout)
         self.levels = nn.ModuleList(levels)
 
