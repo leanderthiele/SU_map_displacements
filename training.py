@@ -50,9 +50,6 @@ def setup_process(rank) :
     # to be called at the beginning of a child process
     # rank passed is the local rank
 #{{{
-    # FIXME debugging
-    print(f'setup_process on MPI_RANK {settings.MPI_RANK}')
-
 
     # new process needs to get a consistent view of the settings
     startup.main(DataModes.TRAINING, rank)
@@ -64,8 +61,7 @@ def setup_process(rank) :
     #        to the entire world
     torch.distributed.init_process_group('nccl',
                                          rank=settings.RANK,
-                                         world_size=settings.WORLD_SIZE,
-                                         init_method=f'file://{settings.SHARE_FILE}')
+                                         world_size=settings.WORLD_SIZE)
 
     torch.cuda.set_device(settings.DEVICE_IDX)
 #}}}
@@ -151,6 +147,9 @@ def training_process(rank) :
             assert isinstance(data, Batch)
 
             inputs, targets, styles = data.get_on_device()
+#            inputs = data.inputs.to(settings.DEVICE_IDX)
+#            targets = data.targets.to(settings.DEVICE_IDX)
+#            styles = data.styles.to(settings.DEVICE_IDX)
 
             # do the forward pass and compute loss
 

@@ -98,23 +98,21 @@ DATA_PATH = '/projects/QUIJOTE/Leander/SU/ML_fixed_cosmo_DMonly_128'
 # note : the actual batch size is num_GPUs * DATALOADER_ARGS[batch_size] * BATCH_SIZE
 #        in practice, the dataloader batch size can only be 1 because otherwise
 #        we'll run out of GPU memory
+#
 # TODO the only benefit of this being >1 would be the batch normalization.
 #      Unfortunately, the SyncBatchNorm module has a synchronization hardcoded
 #      in the forward pass, which makes it impossible to do this.
 #      Thus, for now we'll have to live with batch size = num_GPUs,
 #      if it gets really bad we can try to hack the SyncBatchNorm code
-#      (torch/nn/modules/_functions.py
-
+#      (torch/nn/modules/_functions.py)
+#
+# note : there's virtually no runtime benefit in setting this to values larger than
+#        one (the reason is probably that the forward() call is always synchronizing)
 BATCH_SIZE = ToSet(1)
 
 # Note: since we are using distributed training, the actual number of CPUs
 #       used for the workers will be num_workers * num_GPUs
-# TODO somehow using num_workers > 0 here establishes one CUDA process
-#      per worker (i.e. num_GPUs * num_workers) on the 0th device.
-#      Each needs about 600M, which limits our options quite a bit.
-#      However, not having workers degrades GPU utilization
-#      I saw something on the internet about this, we should fix this!
-DATALOADER_ARGS = dict(batch_size=2,
+DATALOADER_ARGS = dict(batch_size=1,
                        shuffle=True,
                        num_workers=1,
                        pin_memory=True,
@@ -182,8 +180,6 @@ MASTER_ADDR = ToSet('localhost')
 MASTER_PORT = '12355'
 VISIBLE_GPUS = ToSet(None)
 WORLD_SIZE = ToSet(None) # size of the entire team
-
-SHARE_FILE = ToSet(None)
 
 # multiprocessing environment -- these can be set only on a specific rank
 # the default values are not usable

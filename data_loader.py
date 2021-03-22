@@ -105,13 +105,18 @@ class Batch :
             data_items = [data_items, ]
 
         Nchannels = 4 if settings.USE_DENSITY else 3
+
+        # NOTE in the following, we require pin_memory = False.
+        #      the reason is that otherwise we need to establish a CUDA context for each
+        #      worker process, which carries ~ 600 MB that we cannot afford.
+        #      The data copying is fast enough anyway, so no worries here.
         self.inputs = torch.empty(len(data_items), Nchannels, *[settings.NSIDE,]*3,
                                   device=torch.device('cpu'),
-                                  pin_memory=True,
+                                  pin_memory=False,
                                   dtype=torch.float32)
         self.targets = torch.empty(len(data_items), 3, *[settings.NSIDE,]*3,
                                    device=torch.device('cpu'),
-                                   pin_memory=True,
+                                   pin_memory=False,
                                    dtype=torch.float32)
         self.styles = torch.empty(len(data_items), settings.NSTYLES,
                                   device=torch.device('cpu'),
@@ -162,10 +167,6 @@ class WorkerPool :
         # since this is called in a separate process,
         # we need to get a consistent view of the settings
         startup.main(self.mode, self.rank)
-
-        # until we figure out why each worker gets a CUDA context,
-        # we should distribute them equally across the devices
-        torch.cuda.set_device(settings.DEVICE_IDX)
 
         # initialize the random seed for this process
         # we don't use just the worker_id but also the rank

@@ -125,7 +125,26 @@ def set_mp_env() :
             However, in case we're using only one node this should be the preferred setup.]
     """
 #{{{
-    try :
+    if 'SLURM_SRUN_COMM_HOST' in os.environ :
+        # we were launched using srun and can use its environment variables
+        # we check for an environment variable that we are fairly sure will not be set by sbatch
+
+        settings.MPI_WORLD_SIZE = settings.MPI_WORLD_SIZE\
+            .set(int(os.environ['SLURM_NTASKS']))
+        settings.MPI_RANK = settings.MPI_RANK\
+            .set(int(os.environ['SLURM_PROCID']))
+        settings.MPI_LOCAL_WORLD_SIZE = settings.MPI_LOCAL_WORLD_SIZE\
+            .set(len(os.environ['SLURM_GTIDS'].split(',')))
+        settings.MPI_LOCAL_RANK = settings.MPI_LOCAL_RANK\
+            .set(int(os.environ['SLURM_LOCALID']))
+        settings.MPI_NODENAME = settings.MPI_NODENAME\
+            .set(os.environ['SLURMD_NODENAME'])
+        settings.MASTER_ADDR = settings.MASTER_ADDR\
+            .set(os.environ['SLURM_SRUN_COMM_HOST'])
+
+    elif 'OMPI_COMM_WORLD_SIZE' in os.environ :
+        # we were launched using mpirun and can use its environment variables
+
         settings.MPI_WORLD_SIZE = settings.MPI_WORLD_SIZE\
             .set(int(os.environ['OMPI_COMM_WORLD_SIZE']))
         settings.MPI_RANK = settings.MPI_RANK\
@@ -134,18 +153,12 @@ def set_mp_env() :
             .set(int(os.environ['OMPI_COMM_WORLD_LOCAL_SIZE']))
         settings.MPI_LOCAL_RANK = settings.MPI_LOCAL_RANK\
             .set(int(os.environ['OMPI_COMM_WORLD_NODE_RANK']))
-        # note that this one should go last
+
+        # unfortunately, mpirun does not set a global root, so we have to figure
+        # this one out ourselves
         settings.MPI_NODENAME = settings.MPI_NODENAME\
             .set(os.environ['HOSTNAME'])
-    except KeyError :
-        settings.MPI_WORLD_SIZE = settings.MPI_WORLD_SIZE.set()
-        settings.MPI_RANK = settings.MPI_RANK.set()
-        settings.MPI_LOCAL_WORLD_SIZE = settings.MPI_LOCAL_WORLD_SIZE.set()
-        settings.MPI_LOCAL_RANK = settings.MPI_LOCAL_RANK.set()
-        settings.MPI_NODENAME = settings.MPI_NODENAME.set()
 
-    if settings.MPI_WORLD_SIZE != 1 :
-        # we have multiple nodes, need to figure out which one is the root
         from mpi4py import MPI
         comm = MPI.COMM_WORLD
         assert comm.Get_rank() == settings.MPI_RANK
@@ -155,6 +168,16 @@ def set_mp_env() :
             root_name = None
         root_name = comm.bcast(root_name, root=0)
         settings.MASTER_ADDR = settings.MASTER_ADDR.set(root_name)
+
+    else :
+        # we were not launched using either srun or mpirun (i.e. this is a single-node job)
+
+        settings.MPI_WORLD_SIZE = settings.MPI_WORLD_SIZE.set()
+        settings.MPI_RANK = settings.MPI_RANK.set()
+        settings.MPI_LOCAL_WORLD_SIZE = settings.MPI_LOCAL_WORLD_SIZE.set()
+        settings.MPI_LOCAL_RANK = settings.MPI_LOCAL_RANK.set()
+        settings.MPI_NODENAME = settings.MPI_NODENAME.set()
+        settings.MASTER_ADDR = settings.MASTER_ADDR.set()
 
     # we assume that each process has the same number of GPUs available
     settings.VISIBLE_GPUS = settings.VISIBLE_GPUS.set(torch.cuda.device_count())
@@ -175,11 +198,6 @@ def set_mp_env() :
 
     else :
         raise RuntimeError('Invalid MPI environment')
-
-    # ID must have been set before!
-    settings.SHARE_FILE = settings.SHARE_FILE.set('/scratch/gpfs/lthiele/torch_share_files/'
-                                                  + settings.ID)
-
 #}}}
 
 
@@ -283,11 +301,12 @@ def main(mode, rank=None) :
 
     `rank' is the process-local rank (i.e. within an MPI process)
     """
+
     assert isinstance(mode, data_loader.DataModes)
 
     if settings.STARTUP_CALLED :
 
-        if rank is not None :
+        if rank is not None and not settings.THIS_RANK_SET :
             # this is the case when the main process has called startup
             # without a specific rank and then the training process
             # calls it again with knowledge of its rank, but without spawning
