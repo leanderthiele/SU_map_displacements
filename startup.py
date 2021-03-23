@@ -35,6 +35,10 @@ class ArgParser :
                                  help='settings.NLEVELS : integer, number of UNet levels')
         self.parser.add_argument('--learningrate', type=float,
                                  help='settings.OPTIMIZER_ARGS[lr] : float, learning rate')
+        self.parser.add_argument('--residualconcat', action='store_true',
+                                 '~ settings.RESIDUAL_ADD : enables concatenation instead of addition')
+        self.parser.add_argument('--skipconcat', action='store_true',
+                                 '~ settings.SKIP_ADD : enables concatenation instead of addition')
 
 
     def __init__(self) :
@@ -68,6 +72,10 @@ class ArgParser :
             settings.NLEVELS = settings.NLEVELS.set(args.nlevels)
         if hasattr(args, 'learningrate') :
             settings.OPTIMIZER_ARGS['lr'] = settings.OPTIMIZER_ARGS['lr'].set(args.learningrate)
+        if hasattr(args, 'residualconcat') :
+            settings.RESIDUAL_ADD = settings.RESIDUAL_ADD.set(not args.residualconcat)
+        if hasattr(args, 'skipconcat') :
+            settings.SKIP_ADD = settings.SKIP_ADD.set(not args.skipconcat)
 #}}}
 
 

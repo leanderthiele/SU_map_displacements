@@ -1,5 +1,6 @@
 import math
 from enum import Enum, auto
+from copy import deepcopy
 
 import torch
 import torch.nn as nn
@@ -452,11 +453,20 @@ class Level(nn.Module) :
                                    density_channels=layout.density_channels*channel_factor)
 
         self.contract_block = Block(layout, self.lower_layout, **block_kw)
+
         self.expand_block = Block(self.lower_layout, layout, **block_kw)
 
         self.skip = skip
         # will hold the tensor for the skip connection in storage
         self.xskip = None
+
+        # if we concatenate, we need to decrease the number of channels in the end
+        # (note that in this case the level has slightly more parameters)
+        if self.skip and not settings.SKIP_ADD :
+            concat_layout = Layout(channels=2*layout.channels,
+                                   resolution=layout.resolution,
+                                   density_channels=2*layout.density_channels)
+            self.collapse_block = Block(concat_layout, layout, N_layers=2, residual=False)
 
     def contract(self, x, s) :
         if self.skip :
@@ -466,8 +476,17 @@ class Level(nn.Module) :
     def expand(self, x, s) :
         x = self.expand_block(x, s)
         if self.skip :
-            x += self.xskip
-            x /= math.sqrt(2) # against internal variance shift
+            if settings.SKIP_ADD :
+                x += self.xskip
+                x /= math.sqrt(2) # against internal variance shift
+            else :
+                # we do the concatenation in an interleaving fashion so as to preserve
+                # the order of density, x, y, z -- this is only important for operations
+                # with non-trivial `groups' argument at the moment, but in general much
+                # less confusing
+                x = torch.stack((x, self.xskip), dim=2).view(x.shape[0], 2*x.shape[1], *[settings.NSIDE,]*3)
+                x = self.collapse_block(x)
             self.xskip = None
+
         return x
 #}}}

@@ -137,6 +137,14 @@ DEFAULT_NLAYERS = ToSet(6)
 # can only increase this if USE_DENSITY=False, otherwise memory runs out
 NLEVELS = ToSet(5)
 
+# combination mode for the residual connections within blocks
+# (if False, concatenation is used)
+RESIDUAL_ADD = ToSet(True)
+
+# combination mode for the skip connections within levels
+# (if False, concatenation is used)
+SKIP_ADD = ToSet(True)
+
 # number of styles, 1 for delta_L only
 NSTYLES = 1
 
