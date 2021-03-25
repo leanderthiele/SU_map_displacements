@@ -498,7 +498,7 @@ class Level(nn.Module) :
                 # with non-trivial `groups' argument at the moment, but in general much
                 # less confusing
                 x = torch.stack((x, self.xskip), dim=2).view(x.shape[0], 2*x.shape[1], *[x.shape[-1],]*3)
-                x = self.collapse_block(x)
+                x = self.collapse_block(x, s)
             self.xskip = None
 
         return x
