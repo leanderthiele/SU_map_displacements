@@ -362,9 +362,9 @@ class Block(nn.Module) :
 
                                              residual [optional]
                                    ------------------------
-                   resampling     |                        |
-                     SINGLE       |           ALL          | [ combined using +,
-                    no style      |          styles        v   divide by sqrt(2) ]
+                   resampling     |                        |[ combined using +,
+                     SINGLE       |           ALL          |  divide by sqrt(2), 
+                    no style      |          styles        v  or concat (then extra collapse layer)]
     input[in_layout] ------> [out_layout] --> ... --> output[out_layout]
     """
 #{{{
@@ -394,6 +394,15 @@ class Block(nn.Module) :
                                            else \
                                            Activations.OUTPUT,
                                 **common_layer_kwargs))
+
+        if self.residual and not settings.RESIDUAL_ADD :
+            concat_layout = Layout(channels=2*out_layout.channels,
+                                   resolution=out_layout.resolution,
+                                   density_channels=2*out_layout.density_channels)
+            self.collapse = Layer(in_layout=concat_layout, out_layout=out_layout,
+                                  group_mode=GroupModes.ALL,
+                                  activation=activation, **common_layer_kwargs)
+
         self.layers = nn.ModuleList(layers)
 
     def forward(self, x, s) :
@@ -407,8 +416,12 @@ class Block(nn.Module) :
             x = l(x, s)
 
         if self.residual :
-            x += xres
-            x /= math.sqrt(2) # against internal variance shift
+            if settings.RESULTS_PATH :
+                x += xres
+                x /= math.sqrt(2) # against internal variance shift
+            else :
+                x = torch.stack((x, xres), dim=2).view(x.shape[0], 2*x.shape[1], *[settings.NSIDE,]*3)
+                x = self.collapse(x)
 
         return x
 #}}}
@@ -418,8 +431,8 @@ class Level(nn.Module) :
     Implements one level of a UNet architecture, looking something like
 
 
-                             skip connection [optional]
-    input[in_layout]  ---------------------------------------------> x ----------> output[out_layout]
+                             skip connection [optional]                 collapse [optional]
+    input[in_layout]  ---------------------------------------------> x -------------------> output[out_layout]
         |                                                            ^
         |                                                            |
         | .contract                                                  | .expand
