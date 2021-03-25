@@ -421,7 +421,7 @@ class Block(nn.Module) :
                 x /= math.sqrt(2) # against internal variance shift
             else :
                 x = torch.stack((x, xres), dim=2).view(x.shape[0], 2*x.shape[1], *[x.shape[-1],]*3)
-                x = self.collapse(x)
+                x = self.collapse(x, s)
 
         return x
 #}}}
