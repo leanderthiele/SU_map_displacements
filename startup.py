@@ -23,22 +23,22 @@ class ArgParser :
 
         self.parser.add_argument('--id', type=str,
                                  help='settings.ID : string, identifies data associated with this run')
+        self.parser.add_argument('--nodensity', action='store_true',
+                                 help='~ settings.USE_DENSITY : disables the use of the density field as an additional channel')
+        self.parser.add_argument('--residualconcat', action='store_true',
+                                 help='~ settings.RESIDUAL_ADD : enables concatenation instead of addition')
+        self.parser.add_argument('--skipconcat', action='store_true',
+                                 help='~ settings.SKIP_ADD : enables concatenation instead of addition')
         self.parser.add_argument('--batchsize', type=int,
                                  help='settings.BATCH_SIZE : integer, real batch size is times num_GPUs')
         self.parser.add_argument('--naugment', type=int,
                                  help='settings.N_AUGMENTATIONS : integer, number of augmentations per epoch')
-        self.parser.add_argument('--nodensity', action='store_true',
-                                 help='~ settings.USE_DENSITY : disables the use of the density field as an additional channel')
         self.parser.add_argument('--nlayers', type=int,
                                  help='settings.DEFAULT_NLAYERS : integer, typical number of layers in a block')
         self.parser.add_argument('--nlevels', type=int,
                                  help='settings.NLEVELS : integer, number of UNet levels')
         self.parser.add_argument('--learningrate', type=float,
                                  help='settings.OPTIMIZER_ARGS[lr] : float, learning rate')
-        self.parser.add_argument('--residualconcat', action='store_true',
-                                 '~ settings.RESIDUAL_ADD : enables concatenation instead of addition')
-        self.parser.add_argument('--skipconcat', action='store_true',
-                                 '~ settings.SKIP_ADD : enables concatenation instead of addition')
 
 
     def __init__(self) :
