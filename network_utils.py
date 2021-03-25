@@ -420,7 +420,7 @@ class Block(nn.Module) :
                 x += xres
                 x /= math.sqrt(2) # against internal variance shift
             else :
-                x = torch.stack((x, xres), dim=2).view(x.shape[0], 2*x.shape[1], *[settings.NSIDE,]*3)
+                x = torch.stack((x, xres), dim=2).view(x.shape[0], 2*x.shape[1], *[x.shape[-1],]*3)
                 x = self.collapse(x)
 
         return x
@@ -497,7 +497,7 @@ class Level(nn.Module) :
                 # the order of density, x, y, z -- this is only important for operations
                 # with non-trivial `groups' argument at the moment, but in general much
                 # less confusing
-                x = torch.stack((x, self.xskip), dim=2).view(x.shape[0], 2*x.shape[1], *[settings.NSIDE,]*3)
+                x = torch.stack((x, self.xskip), dim=2).view(x.shape[0], 2*x.shape[1], *[x.shape[-1],]*3)
                 x = self.collapse_block(x)
             self.xskip = None
 
