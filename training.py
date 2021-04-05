@@ -27,14 +27,17 @@ def training_process(rank) :
     by periodically giving some loss output.
     """
 #{{{
-    train_util.setup_process(rank)
+    train_utils.setup_process(rank)
 
-    model = Network().to(settings.DEVICE_IDX).to_ddp()
+    # construct the model, load from disk if exists, and put into DDP mode
+    model = Network().sync_batchnorm()
+    optimizer = Optimizer(model.parameters())
 
-    train_utils.load_model(model)
+    train_utils.load_model(model, optimizer)
+
+    model = model.to(settings.DEVICE_IDX).to_ddp()
     
     loss_fn = Loss()
-    optimizer = Optimizer(model.parameters())
 
     # reset the optimizer -- not sure if it is necessary here but can't hurt
     optimizer.zero_grad()
@@ -55,7 +58,7 @@ def training_process(rank) :
     if train_utils.is_output_responsible() :
         assert start_epoch_list[0] == start_epoch
     else :
-        start_epoch == start_epoch_list[0]
+        start_epoch = start_epoch_list[0]
 
 
     # keep track of whether we encounter infinities / nans
@@ -188,7 +191,7 @@ def training_process(rank) :
             train_utils.do_diagnostic_output(all_epochs_training_loss, all_epochs_validation_loss,
                                              epoch+1, len(training_loader))
 
-            train_util.save_model(model)
+            train_utils.save_model(model, optimizer)
 
 
         if train_utils.is_output_responsible() and settings.VERBOSE :

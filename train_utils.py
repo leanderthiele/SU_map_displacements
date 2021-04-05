@@ -1,8 +1,14 @@
+import os
+
+import numpy as np
+
 import torch
 import torch.nn as nn
 import torch.optim
 
+import startup
 import settings
+from data_loader import DataModes
 
 class Loss(nn.MSELoss) :
     """
@@ -44,32 +50,46 @@ def do_diagnostic_output(training_loss, validation_loss, Nepochs, epoch_len) :
 #}}}
 
 
-def save_model(model) :
+def save_model(model, optimizer) :
     # this function will only be called from the rank=0 process
     # TODO we probably want to store other data as well, most importantly the optimizer state dict
     #      other things we can put in are the loss curves
 #{{{
-    torch.save(model.state_dict(), settings.MODEL_FILE)
+    torch.save(dict(model_state_dict=model.module.state_dict(),
+                    optimizer_state_dict=optimizer.state_dict()),
+               settings.MODEL_FILE)
 #}}}
 
 
-def load_model(model) :
+def load_model(model, optimizer=None) :
     # this function will be called from any process, we need to make sure we map
     # the tensors to the correct devices
-    # TODO we probably want to store other data as well, most importantly the optimizer state dict
-    #      other things we can put in are the loss curves
-    # TODO this function may not be correct in mpi mode
+    #
+    # it can also be used for inference, in which case the second argument is not passed
 #{{{
-    model.load_state_dict(torch.load(settings.MODEL_FILE, map_location='cuda:%d'%settings.DEVICE_IDX))
+    try :
+        checkpoint = torch.load(settings.MODEL_FILE, map_location='cuda:%d'%settings.DEVICE_IDX)
+        if settings.RANK == 0 :
+            print('Found saved model, continuing from there.')
+    except FileNotFoundError :
+        if settings.RANK == 0 :
+            print('No saved model found, continuing with freshly initialized one.')
+        return
+
+    model.load_state_dict(checkpoint['model_state_dict'])
+    
+    if optimizer is not None :
+        optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
 #}}}
 
 def load_loss() :
 #{{{
     try :
         with np.load(settings.LOSS_FILE) as f :
-            start_epoch = f['training_times'][-1]
+            start_epoch = int(f['validation_times'][-1])
             training_loss = f['training_loss']
             validation_loss = f['validation_loss']
+        print('starting at epoch %d'%start_epoch)
         return start_epoch, training_loss, validation_loss
     except OSError :
         return 0, np.empty(0), np.empty(0)
