@@ -12,78 +12,9 @@ import settings
 import startup
 from data_loader import DataModes, Batch, DataLoader
 from network import Network
+import train_utils
 from train_utils import Loss, Optimizer
 
-def do_diagnostic_output(training_loss, validation_loss, Nepochs, epoch_len) :
-#{{{
-    training_times = np.linspace(0, Nepochs, num=Nepochs*epoch_len).repeat(settings.WORLD_SIZE)
-    validation_times = np.linspace(1, Nepochs, num=Nepochs).repeat(settings.WORLD_SIZE)
-
-    np.savez(settings.LOSS_FILE, training_times=training_times, validation_times=validation_times,
-                                 training_loss=np.sqrt(training_loss),
-                                 validation_loss=np.sqrt(validation_loss))
-#}}}
-
-
-def save_model(model) :
-    # this function will only be called from the rank=0 process
-    # TODO we probably want to store other data as well, most importantly the optimizer state dict
-    #      other things we can put in are the loss curves
-#{{{
-    torch.save(model.state_dict(), settings.MODEL_FILE)
-#}}}
-
-
-def load_model(model, rank) :
-    # this function will be called from any process, we need to make sure we map
-    # the tensors to the correct devices
-    # TODO we probably want to store other data as well, most importantly the optimizer state dict
-    #      other things we can put in are the loss curves
-    # TODO this function may not be correct in mpi mode
-#{{{
-    map_location = { 'cuda:0' : 'cuda:%d'%rank }
-    model.load_state_dict(torch.load(settings.MODEL_FILE, map_location=map_location))
-#}}}
-
-
-def setup_process(rank) :
-    # to be called at the beginning of a child process
-    # rank passed is the local rank
-#{{{
-
-    # new process needs to get a consistent view of the settings
-    startup.main(DataModes.TRAINING, rank)
-
-    os.environ['MASTER_ADDR'] = settings.MASTER_ADDR
-    os.environ['MASTER_PORT'] = settings.MASTER_PORT
-
-    # note : the `rank' kw here is NOT equal the `rank' argument, since it refers
-    #        to the entire world
-    torch.distributed.init_process_group('nccl',
-                                         rank=settings.RANK,
-                                         world_size=settings.WORLD_SIZE)
-
-    torch.cuda.set_device(settings.DEVICE_IDX)
-#}}}
-
-
-def is_output_responsible() :
-#{{{
-    # we don't want to store more data than really necessary on the 0th rank
-    # which has to collect all the gradients already
-
-    if settings.WORLD_SIZE == 1 :
-        return settings.RANK == 0
-    else :
-        return settings.RANK == 1
-#}}}
-
-
-def cleanup_process() :
-    # to be called at the end of a child process
-#{{{
-    torch.distributed.destroy_process_group()
-#}}}
 
 
 def training_process(rank) :
@@ -96,9 +27,11 @@ def training_process(rank) :
     by periodically giving some loss output.
     """
 #{{{
-    setup_process(rank)
+    train_util.setup_process(rank)
 
     model = Network().to(settings.DEVICE_IDX).to_ddp()
+
+    train_utils.load_model(model)
     
     loss_fn = Loss()
     optimizer = Optimizer(model.parameters())
@@ -109,9 +42,21 @@ def training_process(rank) :
     training_loader = DataLoader(DataModes.TRAINING)
     validation_loader = DataLoader(DataModes.VALIDATION)
 
-    if is_output_responsible() :
-        all_epochs_training_loss = np.empty(0)
-        all_epochs_validation_loss = np.empty(0)
+    # load previous loss if it exists
+    if train_utils.is_output_responsible() :
+        start_epoch, all_epochs_training_loss, all_epochs_validation_loss = train_utils.load_loss()
+        start_epoch_list = [start_epoch, ]
+    else :
+        start_epoch_list = [-1, ]
+
+    # tell the other processes which epoch they should start training on
+    torch.distributed.broadcast_object_list(start_epoch_list, src=settings.RANK)
+    
+    if train_utils.is_output_responsible() :
+        assert start_epoch_list[0] == start_epoch
+    else :
+        start_epoch == start_epoch_list[0]
+
 
     # keep track of whether we encounter infinities / nans
     global_inf = False
@@ -122,7 +67,7 @@ def training_process(rank) :
     idx_in_batch = 0
         
 
-    for epoch in range(settings.EPOCHS) :
+    for epoch in range(start_epoch, start_epoch + settings.EPOCHS) :
         
         if settings.RANK == 0 :
             start_time_epoch = time()
@@ -216,7 +161,7 @@ def training_process(rank) :
         if settings.RANK == 0 and settings.VERBOSE :
             print('\tLoop through validation set took %f seconds'%(time()-start_time_validation))
 
-        if is_output_responsible() :
+        if train_utils.is_output_responsible() :
             start_time_diagnostic = time()
 
         # buffers for gathering
@@ -230,7 +175,7 @@ def training_process(rank) :
         torch.distributed.all_gather_object(all_validation_loss, validation_loss)
 
 
-        if is_output_responsible() :
+        if train_utils.is_output_responsible() :
             # interleave the training loss arrays so the losses are temporally correctly ordered
             all_training_loss = np.vstack(all_training_loss).reshape((-1,), order='F')
             all_validation_loss = np.array(all_validation_loss)
@@ -240,13 +185,13 @@ def training_process(rank) :
             all_epochs_validation_loss = np.concatenate((all_epochs_validation_loss,
                                                          all_validation_loss))
 
-            do_diagnostic_output(all_epochs_training_loss, all_epochs_validation_loss,
-                                 epoch+1, len(training_loader))
+            train_utils.do_diagnostic_output(all_epochs_training_loss, all_epochs_validation_loss,
+                                             epoch+1, len(training_loader))
 
-            save_model(model)
+            train_util.save_model(model)
 
 
-        if is_output_responsible() and settings.VERBOSE :
+        if train_utils.is_output_responsible() and settings.VERBOSE :
             print('\tGathering of losses and diagnostic output took %f seconds'%(time()-start_time_diagnostic))
 
 
@@ -254,7 +199,7 @@ def training_process(rank) :
             print('Epoch %d finished, took %f seconds'%(epoch+1, time()-start_time_epoch))
 
     # we're done, let's release resources
-    cleanup_process()
+    train_utils.cleanup_process()
 #}}}
 
 
