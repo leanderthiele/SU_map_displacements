@@ -34,7 +34,6 @@ def training_process(rank) :
     optimizer = Optimizer(model.parameters())
 
     train_utils.load_model(model, optimizer)
-
     model = model.to(settings.DEVICE_IDX).to_ddp()
     
     loss_fn = Loss()
