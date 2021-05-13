@@ -294,7 +294,10 @@ class StyleConv3d(nn.Module) :
 
         # LFT : added this, otherwise it doesn't work with non-unity batch sizes
         #       [self.bias] = [out_chan, ]
-        b1 = self.bias.expand(N, -1).flatten()
+        if self.bias is not None :
+            b1 = self.bias.expand(N, -1).flatten()
+        else :
+            b1 = None
         
         x = x.reshape(1, N * Cin, *DHWin)
         x = self.conv(x, w1, b1, groups=N)
