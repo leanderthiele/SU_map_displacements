@@ -163,7 +163,11 @@ class Conv3d(nn.Module) :
 
         stride = 1 if self.resample is Resample.EQUAL else 2
 
-        self.padding = 0 if self.resample is Resample.UP else 1
+        # now that we have switched to size-2 kernels when resampling happens,
+        # we don't need padding anymore in those cases
+#        self.padding = 0 if self.resample is Resample.UP else 1
+        self.padding = 1 if self.resample is Resample.EQUAL else 0
+
         self.padding_mode = 'circular' # periodic boundary conditions
 
         if group_mode is not None :
@@ -199,8 +203,9 @@ class Conv3d(nn.Module) :
         x = self.conv(x, w, b, **kwargs)
 
         # if we did upsampling, we'll need to remove one row on each side in each dimension
-        if self.resample is Resample.UP :
-            x = crop(x)
+        # -- only true for the size-3 kernels
+#        if self.resample is Resample.UP :
+#            x = crop(x)
 
         return x
 #}}}
