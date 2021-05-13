@@ -111,20 +111,24 @@ class Activation_BROKEN(nn.Module) :
         return x
 #}}}
 
-class StandardActivation(nn.Hardshrink) :
+class StandardActivation(nn.LeakyReLU) :
     """
-    the parent class applied to all channels.
-    Needs to respect sign symmetry for the displacement channels.
-    Replaces the above for now
+    The usual activation function.
+    Initially we had Hardshrink here, since it was one of the only non-linearities
+    that respected the sign symmetry, but Paco and Yin suggested that this is not actually
+    that important and LeakyReLU may yield better training performance.
     """
 #{{{
     def __init__(self, *args, **kwargs) :
-        super().__init__()
+        super().__init__(inplace=True, negative_slope=0.1)
 #}}}
 
-class OutputActivation(nn.Tanh) :
+class OutputActivation(nn.Module) :
     """
-    suitable for the output of the network, which should fall in the range [-1, 1]
+    suitable for the output of the network, which should fall in the range [-1/2, 1/2]
+
+    We want to use a periodic function so that the network has an easier time respecting
+    the simulation periodicity.
 
     Note that we choose a relatively expensive function here,
     but since it is applied only once in the entire network it is completely fine.
@@ -132,6 +136,9 @@ class OutputActivation(nn.Tanh) :
 #{{{
     def __init__(self, *args, **kwargs) :
         super().__init__()
+
+    def forward(self, x) :
+        return 0.5 * torch.sin(x)
 #}}}
 
 class Conv3d(nn.Module) :
@@ -170,8 +177,10 @@ class Conv3d(nn.Module) :
         else :
             self.conv_ = (nn.ConvTranspose3d
                           if self.resample is Resample.UP
-                          else nn.Conv3d)(in_layout.channels, out_layout.channels, 3, stride=stride,
-                                          groups=get_groups(group_mode, in_layout, out_layout),
+                          else nn.Conv3d)(in_layout.channels, out_layout.channels,
+                                          # when up/downsampling, we use kernel size 2 to avoid checkerboard problems
+                                          3 if resample is Resample.EQUAL else 2,
+                                          stride=stride, groups=get_groups(group_mode, in_layout, out_layout),
                                           bias=True if bias is None else bias)
             self.conv = lambda x, w, b, **kwargs : \
                              self.conv_(x)
@@ -301,7 +310,7 @@ class Layer(nn.Module) :
     """
 #{{{
     def __init__(self, in_layout, out_layout,
-                       activation=Activations.STANDARD, batch_norm=True, dropout=False, styles=False, bias=True,
+                       activation=Activations.STANDARD, batch_norm=True, dropout=False, styles=False, bias=False,
                        group_mode=GroupModes.ALL, # do not change if styles=True
                        batch_norm_kw={}) :
         super().__init__()
@@ -370,7 +379,7 @@ class Block(nn.Module) :
 #{{{
     def __init__(self, in_layout, out_layout,
                        N_layers=6, residual=True,
-                       activation=Activations.STANDARD, batch_norm=True, dropout=False, bias=True,
+                       activation=Activations.STANDARD, batch_norm=False, dropout=False, bias=False,
                        batch_norm_kw={}) :
         super().__init__()
 
@@ -378,7 +387,7 @@ class Block(nn.Module) :
 
         assert(N_layers > 1)
         common_layer_kwargs = dict(batch_norm=batch_norm, dropout=dropout,
-                                   bias=bias, batch_norm_kw=batch_norm_kw)
+                                   batch_norm_kw=batch_norm_kw)
 
         if out_layout.density_channels < 0 :
             out_layout.density_channels = in_layout.density_channels * out_layout.channels // in_layout.channels
@@ -393,6 +402,7 @@ class Block(nn.Module) :
                                            if activation is not Activations.OUTPUT or ii != N_layers-1 \
                                            else \
                                            Activations.OUTPUT,
+                                bias=True if ii==0 else bias,
                                 **common_layer_kwargs))
 
         if self.residual and not settings.RESIDUAL_ADD :
@@ -401,7 +411,9 @@ class Block(nn.Module) :
                                    density_channels=2*out_layout.density_channels)
             self.collapse = Layer(in_layout=concat_layout, out_layout=out_layout,
                                   group_mode=GroupModes.ALL,
-                                  activation=activation, **common_layer_kwargs)
+                                  activation=activation,
+                                  bias=True,
+                                  **common_layer_kwargs)
 
         self.layers = nn.ModuleList(layers)
 

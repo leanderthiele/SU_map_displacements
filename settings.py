@@ -161,7 +161,7 @@ EPOCHS = 1000
 
 # note that these are somewhat dependent on the specific optimizer chosen in train_utils.py
 OPTIMIZER_ARGS = dict(lr=ToSet(1e-3),
-                      betas=(0.9, 0.999), # TODO according to Paco, this may not be the best choice
+                      betas=(0.5, 0.999), # according to Paco, this may be better than the default (0.9, 0.999)
                       eps=1e-8, # default value from pytorch docs
                       weight_decay=0.0, # L2 penalty
                       amsgrad=False)

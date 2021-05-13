@@ -52,6 +52,8 @@ def get_displacement(x1, x2, box_size) :
        --> answer = (x2+B) - x1 = (x2-x1) + B
 
     In all other cases (i.e. |x2-x1| < B/2), we can simply take the signed difference.
+
+    The resulting field is in the interval [ -1/2, 1/2 ] * BoxSize
     """
 #{{{
     x2 -= x1

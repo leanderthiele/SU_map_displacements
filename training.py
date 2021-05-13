@@ -30,7 +30,7 @@ def training_process(rank) :
     train_utils.setup_process(rank)
 
     # construct the model, load from disk if exists, and put into DDP mode
-    model = Network().sync_batchnorm()
+    model = Network()   #.sync_batchnorm() TODO at the moment we are not using batch normalization -- this is not a good solution!
     optimizer = Optimizer(model.parameters())
 
     train_utils.load_model(model, optimizer)

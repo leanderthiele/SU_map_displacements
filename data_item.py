@@ -80,8 +80,8 @@ class DataItem :
         assert self.tensor is None
         assert not self.is_normalized
 
-        # normalize such that the output is in the range [ -1, 1 ]
-        self.displacement /= 0.5 * settings.MAX_BOX_SIZE
+        # normalize such that the output is in the range [ -1/2, 1/2 ]
+        self.displacement /= settings.MAX_BOX_SIZE
         
         # Note that delta_L is actually used as an input, but this structure
         # should be clear
@@ -130,13 +130,13 @@ class DataItem :
         r2 = r % 6  # this one labels the 6 transpositions
 
         # find the reflection
-        reflect_indices = [[], [0,], [1,], [2,], [0,1,], [0,2,], [1,2,], [0,1,2,]][r1]
         if r1 != 0 :
+            reflect_indices = [[], [0,], [1,], [2,], [0,1,], [0,2,], [1,2,], [0,1,2,]][r1]
             self.__reflect(reflect_indices)
 
         # find the transposition
-        transpose_permutation = [[0,1,2], [1,0,2], [0,2,1], [1,2,0], [2,0,1], [2,1,0]][r2]
         if r2 != 0 :
+            transpose_permutation = [[0,1,2], [1,0,2], [0,2,1], [1,2,0], [2,0,1], [2,1,0]][r2]
             self.__transpose(transpose_permutation)
 
         self.is_augmented = True
