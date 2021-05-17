@@ -67,7 +67,8 @@ class Network(nn.Module) :
         # construct the through-block at the bottom
         self.block_through = Block(tmp_layout, tmp_layout)
 
-        print('Network : through-layout = %s'%str(tmp_layout))
+        if settings.RANK == 0 :
+            print('Network : through-layout = %s'%str(tmp_layout))
 
 
     def forward(self, x, s) :
