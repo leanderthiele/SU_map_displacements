@@ -117,12 +117,6 @@ def setup_process(rank) :
 #}}}
 
 
-def is_output_responsible() :
-#{{{
-    return settings.RANK == 0
-#}}}
-
-
 def cleanup_process() :
     # to be called at the end of a child process
 #{{{

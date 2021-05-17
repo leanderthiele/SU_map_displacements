@@ -45,16 +45,16 @@ def training_process(rank) :
     validation_loader = DataLoader(DataModes.VALIDATION)
 
     # load previous loss if it exists
-    if train_utils.is_output_responsible() :
+    if settings.RANK == 0 :
         start_epoch, all_epochs_training_loss, all_epochs_validation_loss = train_utils.load_loss()
         start_epoch_list = [start_epoch, ]
     else :
         start_epoch_list = [-1, ]
 
     # tell the other processes which epoch they should start training on
-    torch.distributed.broadcast_object_list(start_epoch_list, src=settings.RANK)
+    torch.distributed.broadcast_object_list(start_epoch_list, src=0)
     
-    if train_utils.is_output_responsible() :
+    if settings.RANK == 0 :
         assert start_epoch_list[0] == start_epoch
     else :
         start_epoch = start_epoch_list[0]
@@ -163,7 +163,7 @@ def training_process(rank) :
         if settings.RANK == 0 and settings.VERBOSE :
             print('\tLoop through validation set took %f seconds'%(time()-start_time_validation))
 
-        if train_utils.is_output_responsible() :
+        if settings.RANK == 0 :
             start_time_diagnostic = time()
 
         # buffers for gathering
@@ -171,13 +171,13 @@ def training_process(rank) :
         all_validation_loss = [0.0, ] * settings.WORLD_SIZE
 
         # gather the loss values from all processes
-        # note that only the is_output_responsible() process actually needs them,
+        # note that only the 0th process actually needs them,
         # but gather_object is not supported when using NCCL
         torch.distributed.all_gather_object(all_training_loss, training_loss)
         torch.distributed.all_gather_object(all_validation_loss, validation_loss)
 
 
-        if train_utils.is_output_responsible() :
+        if settings.RANK == 0 :
             # interleave the training loss arrays so the losses are temporally correctly ordered
             all_training_loss = np.vstack(all_training_loss).reshape((-1,), order='F')
             all_validation_loss = np.array(all_validation_loss)
@@ -193,7 +193,7 @@ def training_process(rank) :
             train_utils.save_model(model, optimizer)
 
 
-        if train_utils.is_output_responsible() and settings.VERBOSE :
+        if settings.RANK == 0 and settings.VERBOSE :
             print('\tGathering of losses and diagnostic output took %f seconds'%(time()-start_time_diagnostic))
 
 
