@@ -52,8 +52,6 @@ def do_diagnostic_output(training_loss, validation_loss, Nepochs, epoch_len) :
 
 def save_model(model, optimizer) :
     # this function will only be called from the rank=0 process
-    # TODO we probably want to store other data as well, most importantly the optimizer state dict
-    #      other things we can put in are the loss curves
 #{{{
     torch.save(dict(model_state_dict=model.module.state_dict(),
                     optimizer_state_dict=optimizer.state_dict()),
@@ -79,7 +77,16 @@ def load_model(model, optimizer=None) :
     model.load_state_dict(checkpoint['model_state_dict'])
     
     if optimizer is not None :
-        optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
+        if settings.RANK == 0 :
+            print('Loading optimizer state dict (lr, betas are updated if necessary).')
+        opt_state_dict = checkpoint['optimizer_state_dict']
+        # there are some aspects of this state that we may want to alter:
+        opt_state_dict['param_groups'][0]['lr'] = settings.OPTIMIZER_ARGS['lr']
+        opt_state_dict['param_groups'][0]['betas'] = settings.OPTIMIZER_ARGS['betas']
+        optimizer.load_state_dict(opt_state_dict)
+    else :
+        if settings.RANK == 0 :
+            print('Not loading optimizer state as not requested.')
 #}}}
 
 def load_loss() :
