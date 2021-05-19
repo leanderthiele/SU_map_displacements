@@ -178,8 +178,8 @@ def training_process(rank) :
 
         if settings.RANK == 0 :
             # interleave the training loss arrays so the losses are temporally correctly ordered
-            all_training_loss = np.vstack(all_training_loss).reshape((-1,), order='F')
-            all_validation_loss = np.array(all_validation_loss)
+            all_training_loss = np.sqrt(np.vstack(all_training_loss).reshape((-1,), order='F'))
+            all_validation_loss = np.sqrt(np.array(all_validation_loss))
 
             all_epochs_training_loss = np.concatenate((all_epochs_training_loss,
                                                        all_training_loss))

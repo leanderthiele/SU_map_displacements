@@ -45,8 +45,8 @@ def do_diagnostic_output(training_loss, validation_loss, Nepochs, epoch_len) :
     validation_times = np.linspace(1, Nepochs, num=Nepochs).repeat(settings.WORLD_SIZE)
 
     np.savez(settings.LOSS_FILE, training_times=training_times, validation_times=validation_times,
-                                 training_loss=np.sqrt(training_loss),
-                                 validation_loss=np.sqrt(validation_loss))
+                                 training_loss=training_loss,
+                                 validation_loss=validation_loss)
 #}}}
 
 
