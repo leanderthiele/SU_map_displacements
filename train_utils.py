@@ -51,8 +51,13 @@ def do_diagnostic_output(training_loss, validation_loss, Nepochs, epoch_len) :
 
 
 def save_model(model, optimizer) :
-    # this function will only be called from the rank=0 process
+    """
+    this function will only be called from the rank=0 process
+
+    It serializes the model and the optimizer state.
+    """
 #{{{
+    assert settings.RANK == 0
     torch.save(dict(model_state_dict=model.module.state_dict(),
                     optimizer_state_dict=optimizer.state_dict()),
                settings.MODEL_FILE)
@@ -60,13 +65,17 @@ def save_model(model, optimizer) :
 
 
 def load_model(model, optimizer=None) :
-    # this function will be called from any process, we need to make sure we map
-    # the tensors to the correct devices
-    #
-    # it can also be used for inference, in which case the second argument is not passed
+    """
+    This function will be called from any process, we need to make sure we map
+    the tensors to the correct devices
+
+    It can also be used for inference, in which case the second argument is not passed
+    """
 #{{{
     try :
-        checkpoint = torch.load(settings.MODEL_FILE, map_location='cuda:%d'%settings.DEVICE_IDX)
+        # NOTE : since only the RANK=0 process writes to file, we can safely assume that all CUDA tensors
+        #        were written from the cuda:0 device
+        checkpoint = torch.load(settings.MODEL_FILE, map_location={'cuda:0': 'cuda:%d'%settings.DEVICE_IDX})
         if settings.RANK == 0 :
             print('Found saved model, continuing from there.')
     except FileNotFoundError :
@@ -74,7 +83,7 @@ def load_model(model, optimizer=None) :
             print('No saved model found, continuing with freshly initialized one.')
         return
 
-    model.load_state_dict(checkpoint['model_state_dict'])
+    model.module.load_state_dict(checkpoint['model_state_dict'])
     
     if optimizer is not None :
         if settings.RANK == 0 :

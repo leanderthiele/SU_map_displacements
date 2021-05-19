@@ -5,7 +5,6 @@ import numpy as np
 
 import torch
 import torch.distributed
-from torch.nn.parallel import DistributedDataParallel
 import torch.multiprocessing as torch_mp
 
 import settings
@@ -31,10 +30,10 @@ def training_process(rank) :
 
     # construct the model, load from disk if exists, and put into DDP mode
     model = Network()   #.sync_batchnorm() TODO at the moment we are not using batch normalization -- this is not a good solution!
+    model = model.to(settings.DEVICE_IDX).to_ddp()
     optimizer = Optimizer(model.parameters())
 
     train_utils.load_model(model, optimizer)
-    model = model.to(settings.DEVICE_IDX).to_ddp()
     
     loss_fn = Loss()
 
