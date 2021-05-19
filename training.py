@@ -159,9 +159,9 @@ def training_process(rank) :
 
                 assert isinstance(data, Batch)
 
-                inputs, targets, styles = data.get_on_device()
+                inputs, targets, guesses, styles = data.get_on_device()
 
-                prediction = model(inputs, styles)
+                prediction = model(inputs, styles, guesses)
                 validation_loss += loss_fn(prediction, targets).item()
 
         # normalize (per data item)

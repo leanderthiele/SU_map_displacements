@@ -49,7 +49,7 @@ class Network(nn.Module) :
         # in the output, we don't want any activation function because we want to
         # map to the entire real line
         self.collapse = Block(in_layout1, out_layout,
-                              activation=Activations.OUTPUT,
+                              activation=Activations.NONE,
                               batch_norm=False,
                               N_layers=2, residual=False)
 
@@ -95,9 +95,9 @@ class Network(nn.Module) :
         #      particles, in which case we could just get rid of the sin etc.
         #
         #      --> TEMPORARY, CHANGE LATER
-        x = self.collapse(torch.arcsin(2*guess) + x, s)
+        x = self.collapse(x, s)
 
-        return x
+        return x + guess
 
     
     def sync_batchnorm(self) :
