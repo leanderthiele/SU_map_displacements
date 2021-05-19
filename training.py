@@ -89,10 +89,18 @@ def training_process(rank) :
                 start_time_sample = time()
 
             idx_in_batch += 1
-            
+
             assert isinstance(data, Batch)
 
-            inputs, targets, styles = data.get_on_device()
+            if False :
+                # FIXME for intuition / debugging
+                np.savez('test_%d.npz'%settings.RANK,
+                         inputs=data.inputs.numpy(), targets=data.targets.numpy(),
+                         guesses=data.guesses.numpy(), styles=data.styles.numpy())
+                torch.distributed.barrier()
+                raise RuntimeError('Wrote data to file.')
+            
+            inputs, targets, guesses, styles = data.get_on_device()
 
             # do the forward pass and compute loss
 
@@ -100,7 +108,7 @@ def training_process(rank) :
             # full batch and an invalid loss coincide
             batch_done = idx_in_batch > settings.BATCH_SIZE
 
-            prediction = model(inputs, styles)
+            prediction = model(inputs, styles, guesses)
 
             this_training_loss = loss_fn(prediction, targets)
 

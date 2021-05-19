@@ -71,7 +71,7 @@ class Network(nn.Module) :
             print('Network : through-layout = %s'%str(tmp_layout))
 
 
-    def forward(self, x, s) :
+    def forward(self, x, s, guess) :
         x = self.block_in(x, s)
 
         for l in self.levels :
@@ -83,7 +83,19 @@ class Network(nn.Module) :
             x = l.expand(x, s)
 
         x = self.block_out(x, s)
-        x = self.collapse(x, s)
+
+        # TODO maybe this is not the best way to do it!
+        #      Note that guess is in [-1/2, 1/2], so it makes sense to multiply by 2 first
+        #      It should be noted that the arcsin depends on the choice of the OUTPUT activation
+        #      function, so this is information duplication.
+        #
+        #      The main problem is that after adding the `guess' to whatever network output
+        #      we have, we cannot be sure anymore about the periodicity.
+        #      Maybe this whole issues is actually not relevant at all for the vast majority of 
+        #      particles, in which case we could just get rid of the sin etc.
+        #
+        #      --> TEMPORARY, CHANGE LATER
+        x = self.collapse(torch.arcsin(2*guess) + x, s)
 
         return x
 

@@ -119,6 +119,10 @@ class Batch :
                                    device=torch.device('cpu'),
                                    pin_memory=False,
                                    dtype=torch.float32)
+        self.guesses = torch.empty(len(data_items), 3, *[settings.NSIDE,]*3,
+                                   device=torch.device('cpu'),
+                                   pin_memory=False,
+                                   dtype=torch.float32)
         self.styles = torch.empty(len(data_items), settings.NSTYLES,
                                   device=torch.device('cpu'),
                                   pin_memory=False,
@@ -132,6 +136,7 @@ class Batch :
         for ii, data_item in enumerate(data_items) :
             self.inputs[ii, ...] = data_item.item1.tensor
             self.targets[ii, ...] = data_item.item2.tensor[offset:, ...]
+            self.guesses[ii, ...] = data_item.item1.guess
             self.styles[ii, ...] = data_item.styles()
 
         # sanity check
@@ -140,8 +145,9 @@ class Batch :
 
 
     def get_on_device(self) :
-        return self.inputs.to(settings.DEVICE_IDX, non_blocking=True), \
-               self.targets.to(settings.DEVICE_IDX, non_blocking=True), \
+        return self.inputs.to(settings.DEVICE_IDX), \
+               self.targets.to(settings.DEVICE_IDX), \
+               self.guesses.to(settings.DEVICE_IDX), \
                self.styles.to(settings.DEVICE_IDX)
 
 #}}}
