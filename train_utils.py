@@ -39,14 +39,18 @@ class Optimizer(torch.optim.Adam) :
         super().__init__(params, **settings.OPTIMIZER_ARGS)
 #}}}
 
-def do_diagnostic_output(training_loss, validation_loss, Nepochs, epoch_len) :
+def do_diagnostic_output(training_loss, validation_loss,
+                         training_loss_guess, validation_loss_guess,
+                         Nepochs, epoch_len) :
 #{{{
     training_times = np.linspace(0, Nepochs, num=Nepochs*epoch_len).repeat(settings.WORLD_SIZE)
     validation_times = np.linspace(1, Nepochs, num=Nepochs).repeat(settings.WORLD_SIZE)
 
     np.savez(settings.LOSS_FILE, training_times=training_times, validation_times=validation_times,
                                  training_loss=training_loss,
-                                 validation_loss=validation_loss)
+                                 validation_loss=validation_loss,
+                                 training_loss_guess=training_loss_guess,
+                                 validation_loss_guess=validation_loss_guess)
 #}}}
 
 
@@ -105,8 +109,10 @@ def load_loss() :
             start_epoch = int(f['validation_times'][-1])
             training_loss = f['training_loss']
             validation_loss = f['validation_loss']
+            training_loss_guess = f['training_loss_guess']
+            validation_loss_guess = f['validation_loss_guess']
         print('starting at epoch %d'%start_epoch)
-        return start_epoch, training_loss, validation_loss
+        return start_epoch, training_loss, validation_loss, training_loss_guess, validation_loss_guess
     except OSError :
         return 0, np.empty(0), np.empty(0)
 #}}}
