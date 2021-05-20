@@ -182,7 +182,7 @@ def training_process(rank) :
 
         # buffers for gathering
         all_training_loss = [np.empty(0), ] * settings.WORLD_SIZE
-        all_epochs_training_loss_guess = [np.empty(0), ] * settings.WORLD_SIZE
+        all_training_loss_guess = [np.empty(0), ] * settings.WORLD_SIZE
         all_validation_loss = [0.0, ] * settings.WORLD_SIZE
         all_validation_loss_guess = [0.0, ] * settings.WORLD_SIZE
 

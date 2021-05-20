@@ -66,7 +66,8 @@ class DataItem :
         assert self.tensor is None
         assert not self.is_normalized
 
-        self.guess = self.displacement / settings.MAX_BOX_SIZE
+        # same normalization as the one in normalize_for_target
+        self.guess = self.displacement / self.BoxSize
 
         if settings.USE_DENSITY :
             self.density = settings.DENSITY_NORMALIZATIONS[self.mode](self.density)
@@ -86,7 +87,7 @@ class DataItem :
         assert not self.is_normalized
 
         # normalize such that the output is in the range [ -1/2, 1/2 ]
-        self.displacement /= settings.MAX_BOX_SIZE
+        self.displacement /= self.BoxSize
         
         # Note that delta_L is actually used as an input, but this structure
         # should be clear

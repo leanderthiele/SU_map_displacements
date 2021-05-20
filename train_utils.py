@@ -114,7 +114,7 @@ def load_loss() :
         print('starting at epoch %d'%start_epoch)
         return start_epoch, training_loss, validation_loss, training_loss_guess, validation_loss_guess
     except OSError :
-        return 0, np.empty(0), np.empty(0)
+        return 0, np.empty(0), np.empty(0), np.empty(0), np.empty(0)
 #}}}
 
 

@@ -64,12 +64,7 @@ USE_DENSITY = ToSet(True)
 H_UNITS = False
 
 # in which range we want to train (can restrict initially to make task simpler)
-DELTA_L_BOUNDS = [0.0, 0.3]
-
-# should be somewhat larger than the largest box size that will be encountered
-# (precise value is not super important,
-#  this is just to normalize the target displacement field within [-1,1])
-MAX_BOX_SIZE = 25000 / 0.6
+DELTA_L_BOUNDS = [0.0, ToSet(100)]
 
 # specify the redshift that we're working at using this switch
 # TODO we can generalize this into a list and map between redshifts.
