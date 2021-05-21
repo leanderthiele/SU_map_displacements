@@ -1,3 +1,8 @@
+"""
+A small script to compute the coefficients needed in our normalization functions.
+"""
+
+
 import math
 import numpy as np
 

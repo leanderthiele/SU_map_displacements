@@ -1,3 +1,8 @@
+"""
+This is currently the only executable script within the entire code.
+"""
+
+
 import os
 from time import time
 
@@ -20,10 +25,8 @@ def training_process(rank) :
     """
     A single training process, working on its own data.
 
-    training_loss and validation_loss are in shared memory,
-    the individual processes write into separate locations according to their rank.
     The root process is responsible for keeping us updated about training progress
-    by periodically giving some loss output.
+    by periodically giving some loss output and saving the trained model to disk.
     """
 #{{{
     train_utils.setup_process(rank)
@@ -31,8 +34,12 @@ def training_process(rank) :
     # construct the model, load from disk if exists, and put into DDP mode
     model = Network()   #.sync_batchnorm() TODO at the moment we are not using batch normalization -- this is not a good solution!
     model = model.to(settings.DEVICE_IDX).to_ddp()
+
+    # NOTE it is important that we push the model to the GPU first and establish the DDP stuff,
+    #      because otherwise the optimizer may refer to invalid parameters.
     optimizer = Optimizer(model.parameters())
 
+    # if we have a previously trained model on disk, now is the time to load it into memory
     train_utils.load_model(model, optimizer)
     
     loss_fn = Loss()
@@ -59,8 +66,9 @@ def training_process(rank) :
     else :
         start_epoch = start_epoch_list[0]
 
-
     # keep track of whether we encounter infinities / nans
+    # the basic idea here is that if one of the processes computes an invalid loss function,
+    # we don't want to have nans propagate into our weight updates.
     global_inf = False
     inf_list = [False, ] * settings.WORLD_SIZE
 
@@ -111,6 +119,7 @@ def training_process(rank) :
             # full batch and an invalid loss coincide
             batch_done = idx_in_batch > settings.BATCH_SIZE
 
+            # do the forward pass
             prediction = model(inputs, styles, guesses)
 
             this_training_loss = loss_fn(prediction, targets)
@@ -131,7 +140,8 @@ def training_process(rank) :
             should_update_weights = batch_done and not global_inf
 
             if should_update_weights :
-                # update gradients synchronously -- this is an implicit synchronization point!
+                # do the backward pass
+                # updates gradients synchronously -- this is an implicit synchronization point!
                 this_training_loss.backward()
             else :
                 if this_inf :

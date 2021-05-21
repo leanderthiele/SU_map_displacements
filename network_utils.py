@@ -1,3 +1,9 @@
+"""
+Contains building blocks for some UNet, which we use in the
+Network class defined in network.py to assemble our neural net.
+"""
+
+
 import math
 from enum import Enum, auto
 from copy import deepcopy
@@ -11,6 +17,8 @@ import settings
 class Resample(Enum) :
     """
     resampling modes -- UP / DOWN are factor 2 resamplings (stride=2)
+
+    (by resampling we mean a change in resolution)
     """
     UP = auto() # upsampling -- resolution increases by 2
     DOWN = auto() # downsampling -- resolution decreases by 2
@@ -40,6 +48,10 @@ def crop(x, num=1) :
     """
     removes num rows on each side in each dimension of x
     x is assumed to have shape [batch, channel, x1, x2, x3]
+
+    NOTE this function is not used at the moment as it is not needed when we do resampling
+         with size 2 kernels.
+         We keep it for reference.
     """
 #{{{
     return x.narrow(2, num//2, x.shape[2]-num) \
@@ -71,6 +83,9 @@ def get_groups(group_mode, in_layout, out_layout) :
 class Layout :
     """
     a simple wrapper around some properties we associate with tensors
+
+    We use instances of this class to signal to our building blocks what we intend
+    to put in and what we expect to get out.
     """
 #{{{
     def __init__(self, channels, resolution, density_channels) :
@@ -87,11 +102,11 @@ class Activation_BROKEN(nn.Module) :
     our custom activation function that works on the channels we associate with density
     and on those we associate with displacement separately
 
-    UPDATE : we don't seem to be able to work on channels separately...
-             the backward function fails to compute gradients then.
-             
-             That's why I "commented out" this module, use the one below for now
-             until we figure out how to do this
+    UPDATE we don't seem to be able to work on channels separately...
+           the backward function fails to compute gradients then.
+           
+           That's why I "commented out" this module, use the one below for now
+           until we figure out how to do this
     """
 #{{{
     def __init__(self, layout) :
@@ -114,6 +129,7 @@ class Activation_BROKEN(nn.Module) :
 class StandardActivation(nn.LeakyReLU) :
     """
     The usual activation function.
+
     Initially we had Hardshrink here, since it was one of the only non-linearities
     that respected the sign symmetry, but Paco and Yin suggested that this is not actually
     that important and LeakyReLU may yield better training performance.
@@ -146,6 +162,7 @@ class Conv3d(nn.Module) :
     implements 3d convolution with periodic boundary conditions,
     consistently treating the cropping and padding
     It has two modes, depending on the external_weight keyword.
+
     We expect that external_weight=False for all applications except within StyleConv3d.
     """
 #{{{
@@ -163,9 +180,6 @@ class Conv3d(nn.Module) :
 
         stride = 1 if self.resample is Resample.EQUAL else 2
 
-        # now that we have switched to size-2 kernels when resampling happens,
-        # we don't need padding anymore in those cases
-#        self.padding = 0 if self.resample is Resample.UP else 1
         self.padding = 1 if self.resample is Resample.EQUAL else 0
 
         self.padding_mode = 'circular' # periodic boundary conditions
@@ -190,8 +204,13 @@ class Conv3d(nn.Module) :
                              self.conv_(x)
 
     def forward(self, x, w=None, b=None, **kwargs) :
-        # note that w, b, and kwargs are only used for the external_weight case
-        # kwargs is intended to be used for the `groups' argument only
+        """
+        NOTE w, b, and kwargs are only used for the external_weight case
+
+        kwargs is intended to be used for the `groups' argument only
+        which will be passed to the pytorch convolution function mapped to by self.conv.
+        """
+
         assert (self.external_weight and w is not None) \
                or (not self.external_weight and w is None)
 
@@ -201,11 +220,6 @@ class Conv3d(nn.Module) :
 
         # apply the convolution. Note that if not self.external_weight, the w, b arguments are ignored
         x = self.conv(x, w, b, **kwargs)
-
-        # if we did upsampling, we'll need to remove one row on each side in each dimension
-        # -- only true for the size-3 kernels
-#        if self.resample is Resample.UP :
-#            x = crop(x)
 
         return x
 #}}}
@@ -314,7 +328,9 @@ class StyleConv3d(nn.Module) :
 
 class Layer(nn.Module) :
     """
-    a single convolutional layer, including activation, batch norm, dropout
+    a single convolutional layer, optionally including activation, batch norm, dropout
+
+    Can be used with or without styles.
     """
 #{{{
     def __init__(self, in_layout, out_layout,
@@ -339,7 +355,7 @@ class Layer(nn.Module) :
                  else Resample.UP if 2*in_layout.resolution == out_layout.resolution \
                  else Resample.DOWN if in_layout.resolution == 2 * out_layout.resolution \
                  else None
-        assert resample is not None, "Incompatible resolutions in=%d out=%d"%(in_layout.resolution,
+        assert resample is not None, 'Incompatible resolutions in=%d out=%d'%(in_layout.resolution,
                                                                               out_layout.resolution)
         common_conv_kwargs = dict(in_layout=in_layout, out_layout=out_layout,
                                   resample=resample, bias=bias)
@@ -353,6 +369,7 @@ class Layer(nn.Module) :
             assert isinstance(styles, bool)
             self.do_styles = False
             self.conv = Conv3d(external_weight=False, group_mode=group_mode, **common_conv_kwargs)
+
 
     def forward(self, x, s=None) :
         if self.do_styles :
@@ -425,6 +442,7 @@ class Block(nn.Module) :
 
         self.layers = nn.ModuleList(layers)
 
+
     def forward(self, x, s) :
 
         x = self.layers[0](x, s)
@@ -475,9 +493,13 @@ class Level(nn.Module) :
     The number of density channels will be changed proportionally
 
     Note also that the block properties at this level can be controlled using block_kw
+
+    This module is special in that it doesn't have a single forward method,
+    but rather separate contract and expand methods.
     """
 #{{{
     def __init__(self, layout, skip=True, channel_factor=2, **block_kw) :
+
         super().__init__()
 
         assert layout.resolution % 2 == 0
@@ -501,10 +523,12 @@ class Level(nn.Module) :
                                    density_channels=2*layout.density_channels)
             self.collapse_block = Block(concat_layout, layout, N_layers=2, residual=False)
 
+
     def contract(self, x, s) :
         if self.skip :
             self.xskip = torch.clone(x)
         return self.contract_block(x, s)
+
 
     def expand(self, x, s) :
         x = self.expand_block(x, s)

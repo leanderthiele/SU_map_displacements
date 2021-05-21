@@ -1,3 +1,8 @@
+"""
+Wrappers around the torch Dataset and DataLoader classes.
+"""
+
+
 from copy import copy
 from glob import glob
 from enum import Enum, auto
@@ -15,6 +20,9 @@ from simulation_run import get_runs
 from data_item import DataItem, InputTargetPair
 
 class DataModes(Enum) :
+    """
+    the three possible modes for which we may want to load data
+    """
     TRAINING = auto()
     VALIDATION = auto()
     TESTING = auto()
@@ -34,8 +42,10 @@ class Dataset(torch_Dataset) :
     """
 #{{{
     def __init__(self, mode) :
-        # populates self.run_pairs, which contains pairs of __Run instances,
-        # each pair sorted in such a way that the lower delta_L comes first
+        """
+        populates self.run_pairs, which contains pairs of SimulationRun instances,
+        each pair sorted in such a way that the lower delta_L comes first
+        """
 
         self.mode = mode 
 
@@ -45,7 +55,10 @@ class Dataset(torch_Dataset) :
             print('%d samples in the %s set'%(len(self.run_pairs), str(mode)))
 
     def getitem_all(self, idx) :
-        # operates on the entire dataset
+        """
+        operates on the entire dataset, i.e. idx is within the whole set of simulations
+        and augmentations
+        """
 
         # figure out which run and which data augmentation this idx refers to
         run_idx = idx // settings.N_AUGMENTATIONS
@@ -65,17 +78,23 @@ class Dataset(torch_Dataset) :
                    .to_torch()
 
     def __getitem__(self, idx) :
-        # operates on the sub-dataset corresponding to this rank
+        """
+        operates on the sub-dataset corresponding to this rank
+        """
 
         return self.getitem_all(idx * settings.WORLD_SIZE + settings.RANK)
 
     def len_all(self) :
-        # operates on the entire dataset
+        """
+        operates on the entire dataset
+        """
 
         return settings.N_AUGMENTATIONS * len(self.run_pairs)
 
     def __len__(self) :
-        # operates on the sub-dataset corresponding to this rank
+        """
+        operates on the sub-dataset corresponding to this rank
+        """
 
         return self.len_all() // settings.WORLD_SIZE
 #}}}
@@ -85,11 +104,11 @@ class Batch :
     represents a Batch of data items
 
     Upon construction, Batch has the fields
-        inputs, targets, styles,
+        inputs, targets, guesses, styles,
     each with the 0th dimension the batch dimension
 
     We expose the method get_on_device() that returns the tuple
-        inputs, targets, styles
+        inputs, targets, guesses, styles
     on the device local to the process
     """
 #{{{
@@ -169,7 +188,9 @@ class WorkerPool :
         self.rank = copy(settings.LOCAL_RANK)
 
     def init_worker(self, worker_id) :
-        # use this method as worker_init_fn
+        """
+        use this method as worker_init_fn
+        """
 
         # since this is called in a separate process,
         # we need to get a consistent view of the settings

@@ -1,3 +1,11 @@
+"""
+Defines the classes
+    DataItem
+    InputTargetPair
+which we use to organize our training data.
+"""
+
+
 import numpy as np
 import h5py
 import torch
@@ -8,6 +16,13 @@ import sim_utils
 class DataItem :
     """
     constructs a network-friendly representation of a simulation run
+
+    It contains the displacement field, and optionally the density field.
+
+    It has some member functions that allow data augmentation and normalization.
+    
+    A DataItem instance can be used either as input or as target,
+    depending on which normalization method is called.
     """
 #{{{
     def __init__(self, mode, run) :
@@ -56,8 +71,10 @@ class DataItem :
         self.is_augmented = False
 
     def normalize_for_input(self) :
-        # cannot be called after to_torch()
-        # mutually exclusive with normalize_for_target
+        """
+        cannot be called after to_torch()
+        mutually exclusive with normalize_for_target
+        """
 
         # TODO in principle, we could think about using the same normalization function
         #      everywhere here. Then it would simply be a collection of magic numbers.
@@ -73,15 +90,20 @@ class DataItem :
             self.density = settings.DENSITY_NORMALIZATIONS[self.mode](self.density)
         self.displacement = settings.DISPLACEMENT_NORMALIZATIONS[self.mode](self.displacement)
 
-        self.delta_L = settings.DELTA_L_NORMALIZATIONS[self.mode](self.delta_L)
+        # this is a safety feature: currently, the input can only be the non-DC run,
+        # and there's no reason we should have to use the value of delta_L anywhere
+        assert abs(self.delta_L) < 1e-10
+        self.delta_L = None
 
         self.is_normalized = True
 
         return self
 
     def normalize_for_target(self) :
-        # cannot be called after to_torch()
-        # mutually exclusive with normalize_for_input
+        """
+        cannot be called after to_torch()
+        mutually exclusive with normalize_for_input
+        """
         
         assert self.tensor is None
         assert not self.is_normalized
@@ -98,7 +120,9 @@ class DataItem :
         return self
 
     def __reflect(self, indices) :
-        # indices labels the axes that should be reflected
+        """
+        indices labels the axes that should be reflected
+        """
 
         # do the axis reversal
         # we need to be careful here because of the 0th (channel) dimension
@@ -119,7 +143,9 @@ class DataItem :
                 self.guess[ii, ...] *= -1.0
 
     def __transpose(self, permutation) :
-        # permutation is a permutation of [0,1,2] 
+        """
+        permutation is a permutation of [0,1,2] 
+        """
 
         # when transposing, we need to preserve the channel dimension
         permutationp1 = [0,] + [ii+1 for ii in permutation]
@@ -138,9 +164,14 @@ class DataItem :
             self.guess = self.guess[permutation, ...]
 
     def augment_data(self, r) :
-        # cannot be called after to_torch() or normalize
-        # performs the data augmentation.
-        # r should be some integer
+        """
+        r should be some non-negative integer
+
+        cannot be called after to_torch() or normalize
+
+        performs the data augmentation, i.e. some combination of reflections and transpositions
+        depending on the value of r.
+        """
 
         assert self.tensor is None
         assert not self.is_normalized
@@ -165,7 +196,13 @@ class DataItem :
         return self
 
     def to_torch(self) :
-        # call this method right at the end, after augmentation and normalization
+        """
+        It was convenient to have the data as numpy arrays, this method
+        `finalizes' the DataItem instance and converts all data into pytorch tensors.
+        The tensors are still on the CPU device.
+
+        call this method right at the end, after augmentation and normalization
+        """
 
         assert self.is_normalized
         assert self.is_augmented
@@ -193,14 +230,28 @@ class DataItem :
 class InputTargetPair :
     """
     simply a wrapper around two DataItem's
+
+    The member functions work very analogously to the DataItem methods,
+    only now they are applied to both input and target
     """
 #{{{
     def __init__(self, item1, item2) :
+        """
+        item1 should be the `input' and item2 the `target'.
+        Note that there's a small inconsistency because one part of the input
+        is the style Delta_L, which we get from item2.
+        """
+
+        assert isinstance(item1, DataItem)
+        assert isinstance(item2, DataItem)
         self.item1 = item1
         self.item2 = item2
 
     def styles(self) :
-        # returns the styles describing this InputTargetPair as a torch tensor
+        """
+        returns the styles describing this InputTargetPair as a torch tensor
+        """
+
         # TODO this is hardcoded at the moment, we may want to change that later
 
         assert self.item2.is_normalized
@@ -208,18 +259,23 @@ class InputTargetPair :
         return torch.tensor([self.item2.delta_L, ], dtype=torch.float32)
 
     def normalize(self) :
-        # performs normalization according to the supplied functions
-        # Needs to be called prior to to_torch()
+        """
+        performs normalization according to the supplied functions
+        Needs to be called prior to to_torch()
+        """
+
         self.item1 = self.item1.normalize_for_input()
         self.item2 = self.item2.normalize_for_target()
         return self
 
     def augment_data(self, rand_int=None) :
-        # performs the full set of data augmentations necessary.
-        # Note that we have to implement this method here and not in DataItem
-        # because we need the transformations to be consistent between input and target
-        # rand_int should be a callable that produces a random integer,
-        # or a random integer
+        """
+        performs the full set of data augmentations necessary.
+        Note that we have to implement this method here and not in DataItem
+        because we need the transformations to be consistent between input and target
+        rand_int should be a callable that produces a random integer,
+        or a random integer
+        """
         
         if rand_int is None :
             r = np.random.default_rng(id(self) % 2**32).integers(2**32)
@@ -236,7 +292,10 @@ class InputTargetPair :
         return self
 
     def to_torch(self) :
-        # note that this function cannot be called before augment_data,
+        """
+        note that this function cannot be called before augment_data,
+        """
+
         self.item1 = self.item1.to_torch()
         self.item2 = self.item2.to_torch()
         return self
