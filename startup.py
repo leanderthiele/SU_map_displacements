@@ -41,6 +41,8 @@ class ArgParser :
                                  help='settings.OPTIMIZER_ARGS[lr] : float, learning rate')
         self.parser.add_argument('--deltaLmax', type=float,
                                  help='settings.DELTA_L_BOUNDS[1]: float, maximum target Delta_L')
+        self.parser.add_argument('--strictload', action='store_true',
+                                 help='~ settings.WARMSTART : strict check that model on disk fits architecture')
 
 
     def __init__(self) :
@@ -80,6 +82,8 @@ class ArgParser :
             settings.SKIP_ADD = settings.SKIP_ADD.set(not args.skipconcat)
         if hasattr(args, 'deltaLmax') :
             settings.DELTA_L_BOUNDS[1] = settings.DELTA_L_BOUNDS[1].set(args.deltaLmax)
+        if hasattr(args, 'strictload') :
+            settings.WARMSTART = settings.WARMSTART.set(not args.strictload)
 #}}}
 
 

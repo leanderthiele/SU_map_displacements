@@ -66,6 +66,10 @@ H_UNITS = False
 # in which range we want to train (can restrict initially to make task simpler)
 DELTA_L_BOUNDS = [0.0, ToSet(100)]
 
+# whether to attempt warm starting when loading a model from disk that doesn't
+# exactly fit the network architecture
+WARMSTART = ToSet(True)
+
 # specify the redshift that we're working at using this switch
 # TODO we can generalize this into a list and map between redshifts.
 #      In that case, redshift has to be an additional style

@@ -87,7 +87,7 @@ def load_model(model, optimizer=None) :
             print('No saved model found, continuing with freshly initialized one.')
         return
 
-    model.module.load_state_dict(checkpoint['model_state_dict'])
+    model.module.load_state_dict(checkpoint['model_state_dict'], strict=not settings.WARMSTART)
     
     if optimizer is not None :
         if settings.RANK == 0 :
@@ -96,7 +96,16 @@ def load_model(model, optimizer=None) :
         # there are some aspects of this state that we may want to alter:
         opt_state_dict['param_groups'][0]['lr'] = settings.OPTIMIZER_ARGS['lr']
         opt_state_dict['param_groups'][0]['betas'] = settings.OPTIMIZER_ARGS['betas']
-        optimizer.load_state_dict(opt_state_dict)
+        
+        try :
+            optimizer.load_state_dict(opt_state_dict)
+        except ValueError :
+            if settings.WARMSTART :
+                if settings.RANK == 0 :
+                    print('Could not load optimizer state from disk as for a different model, default initializing')
+            else :
+                raise ValueError('saved optimizer not compatible with model, and settings.WARMSTART=False.')
+
     else :
         if settings.RANK == 0 :
             print('Not loading optimizer state as not requested.')
