@@ -1,3 +1,13 @@
+"""
+The `main' function in this module populates the `settings' module
+with global variables.
+
+The most important thing is that main needs to be called whenever a new
+process starts up since python does not consistently copy state into
+forked/spawned processes.
+"""
+
+
 from sys import argv
 import os
 import os.path
@@ -235,6 +245,11 @@ def set_mp_env() :
 
 
 def set_mp_env_for_rank(rank) :
+    """
+    things we need to do once we know the rank we're on
+    The argument passed is the local rank, i.e. within a single MPI process
+    the rank that we get from spawning the training function
+    """
 #{{{
     assert not settings.THIS_RANK_SET
 
@@ -330,7 +345,7 @@ def set_remaining() :
 def main(mode, rank=None) :
     """
     this is the only function that should be called from this module.
-    `mode' refers to the global mode of execution.
+    `mode' refers to the global mode of execution (i.e. training, validation, or testing).
 
     `rank' is the process-local rank (i.e. within an MPI process)
     """

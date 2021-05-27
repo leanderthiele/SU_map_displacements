@@ -1,3 +1,7 @@
+"""
+Defines the Network class, which represents our neural net.
+"""
+
 from copy import deepcopy
 
 import torch
@@ -72,6 +76,13 @@ class Network(nn.Module) :
 
 
     def forward(self, x, s, guess) :
+        """
+        x = input field (normalized)
+        s = style vector (normalized)
+        guess = our naive guess for what the output should be
+                (currently this is just x but with a different normalization)
+        """
+        
         x = self.block_in(x, s)
 
         for l in self.levels :
@@ -85,27 +96,26 @@ class Network(nn.Module) :
         x = self.block_out(x, s)
 
         # TODO maybe this is not the best way to do it!
-        #      Note that guess is in [-1/2, 1/2], so it makes sense to multiply by 2 first
-        #      It should be noted that the arcsin depends on the choice of the OUTPUT activation
-        #      function, so this is information duplication.
-        #
-        #      The main problem is that after adding the `guess' to whatever network output
-        #      we have, we cannot be sure anymore about the periodicity.
-        #      Maybe this whole issues is actually not relevant at all for the vast majority of 
-        #      particles, in which case we could just get rid of the sin etc.
-        #
-        #      --> TEMPORARY, CHANGE LATER
         x = self.collapse(x, s)
 
         return x + guess
 
     
     def sync_batchnorm(self) :
-        # we need to convert all batch normalizations into synchronized ones!
+        """
+        we need to convert all batch normalizations into synchronized ones!
+
+        NOTE this method is not used at the moment because we believe that batch normalization
+             does not play well with the style modulation.
+        """
+
         return nn.SyncBatchNorm.convert_sync_batchnorm(self)
 
     
     def to_ddp(self) :
-        # turns the network into a parallel module
+        """
+        turns the network into a parallel module
+        """
+
         return DistributedDataParallel(self, device_ids=[settings.DEVICE_IDX, ])
 #}}}

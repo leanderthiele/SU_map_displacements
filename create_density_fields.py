@@ -1,5 +1,13 @@
-# call as python create_density_fields.py RANK WORLD_SIZE
+"""
+This is a small script to reduce the particle catalogs to density
+fields.
 
+It uses the Voxelize code.
+
+Call as
+    python create_density_fields.py RANK WORLD_SIZE
+where RANK and WORLD_SIZE are e.g. slurm array job parameters.
+"""
 
 from glob import glob
 from os.path import splitext

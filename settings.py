@@ -1,5 +1,3 @@
-from enum import Enum, auto
-
 """
 This file contains some global switches etc. that we'd like to
 use in different parts of the code.
@@ -16,6 +14,8 @@ through expressions of the form
 [ objects that are not instances of ToSet won't implement this interface so we'd get an error ]
 """
 
+from enum import Enum, auto
+
 class ToSet :
     """
     settings that are required to be set by startup.main() are initialized
@@ -30,6 +30,7 @@ class ToSet :
 #{{{
     def __init__(self, default) :
         self.default = default
+
     def set(self, value=None) :
         if value is None :
             if self.default is None :   

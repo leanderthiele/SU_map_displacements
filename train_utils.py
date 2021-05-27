@@ -1,3 +1,7 @@
+"""
+Some functions and classes we want to use during training.
+"""
+
 import os
 
 import numpy as np
@@ -42,6 +46,9 @@ class Optimizer(torch.optim.Adam) :
 def do_diagnostic_output(training_loss, validation_loss,
                          training_loss_guess, validation_loss_guess,
                          Nepochs, epoch_len) :
+    """
+    saves the various losses to disk
+    """
 #{{{
     training_times = np.linspace(0, Nepochs, num=Nepochs*epoch_len).repeat(settings.WORLD_SIZE)
     validation_times = np.linspace(1, Nepochs, num=Nepochs).repeat(settings.WORLD_SIZE)
@@ -112,6 +119,10 @@ def load_model(model, optimizer=None) :
 #}}}
 
 def load_loss() :
+    """
+    Tries to load existing loss curves from disk so we get a nice continous
+    loss curve even if we have to interrupt training at some point.
+    """
 #{{{
     try :
         with np.load(settings.LOSS_FILE) as f :
@@ -128,8 +139,12 @@ def load_loss() :
 
 
 def setup_process(rank) :
-    # to be called at the beginning of a child process
-    # rank passed is the local rank
+    """
+    to be called at the beginning of a child process
+    rank passed is the local rank
+
+    This function establishes the distributed environment for pytorch.
+    """
 #{{{
 
     # new process needs to get a consistent view of the settings
@@ -144,12 +159,15 @@ def setup_process(rank) :
                                          rank=settings.RANK,
                                          world_size=settings.WORLD_SIZE)
 
+    # the global pytorch switch -- not sure if it's important here but cannot hurt.
     torch.cuda.set_device(settings.DEVICE_IDX)
 #}}}
 
 
 def cleanup_process() :
-    # to be called at the end of a child process
+    """
+    to be called at the end of a child process
+    """
 #{{{
     torch.distributed.destroy_process_group()
 #}}}
