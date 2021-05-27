@@ -53,6 +53,8 @@ class ArgParser :
                                  help='settings.DELTA_L_BOUNDS[1]: float, maximum target Delta_L')
         self.parser.add_argument('--strictload', action='store_true',
                                  help='~ settings.WARMSTART : strict check that model on disk fits architecture')
+        self.parser.add_argument('--leakyreluslope', type=float,
+                                 help='settings.LEAKYRELU_SLOPE')
 
 
     def __init__(self) :
@@ -94,6 +96,8 @@ class ArgParser :
             settings.DELTA_L_BOUNDS[1] = settings.DELTA_L_BOUNDS[1].set(args.deltaLmax)
         if hasattr(args, 'strictload') :
             settings.WARMSTART = settings.WARMSTART.set(not args.strictload)
+        if hasattr(args, 'leakyreluslope') :
+            settings.LEAKYRELU_SLOPE = settings.LEAKYRELU_SLOPE.set(args.leakyreluslope)
 #}}}
 
 

@@ -145,6 +145,9 @@ RESIDUAL_ADD = ToSet(True)
 # (if False, concatenation is used)
 SKIP_ADD = ToSet(True)
 
+# leaky relu slope -- default is what I tried first
+LEAKYRELU_SLOPE = ToSet(0.1)
+
 # number of styles, 1 for delta_L only
 NSTYLES = 1
 

@@ -136,7 +136,7 @@ class StandardActivation(nn.LeakyReLU) :
     """
 #{{{
     def __init__(self, *args, **kwargs) :
-        super().__init__(inplace=False, negative_slope=0.1)
+        super().__init__(inplace=False, negative_slope=settings.LEAKYRELU_SLOPE)
 #}}}
 
 class OutputActivation(nn.Module) :
