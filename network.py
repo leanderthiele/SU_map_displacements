@@ -95,10 +95,20 @@ class Network(nn.Module) :
 
         x = self.block_out(x, s)
 
-        # TODO maybe this is not the best way to do it!
         x = self.collapse(x, s)
 
-        return x + guess
+        # map to [-0.5, 0.5] to avoid exploding loss
+        return Network.sawteeth(x + guess)
+    
+    
+    @staticmethod
+    def sawteeth(x) :
+        """
+        helper function.
+        x is centered on zero and goes from -inf to inf
+        returns x centered on zero going from -1/2 to 1/2
+        """
+        return torch.remainder(x+0.5, 1.0) - 0.5
 
     
     def sync_batchnorm(self) :
