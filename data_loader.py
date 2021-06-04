@@ -159,8 +159,10 @@ class Batch :
             self.styles[ii, ...] = data_item.styles()
 
         # sanity check
-        assert torch.min(self.targets).item() >= -1.0
-        assert torch.max(self.targets).item() <= +1.0
+        assert torch.min(self.targets).item() >= -0.5
+        assert torch.max(self.targets).item() <= +0.5
+        assert torch.min(self.guesses).item() >= -0.5
+        assert torch.max(self.guesses).item() <= +0.5
 
 
     def get_on_device(self) :

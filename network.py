@@ -75,12 +75,12 @@ class Network(nn.Module) :
             print('Network : through-layout = %s'%str(tmp_layout))
 
 
-    def forward(self, x, s, guess) :
+    def forward(self, x, s, g) :
         """
         x = input field (normalized)
         s = style vector (normalized)
-        guess = our naive guess for what the output should be
-                (currently this is just x but with a different normalization)
+        g = our naive guess for what the output should be
+            (currently this is just x but with a different normalization)
         """
         
         x = self.block_in(x, s)
@@ -98,7 +98,13 @@ class Network(nn.Module) :
         x = self.collapse(x, s)
 
         # map to [-0.5, 0.5] to avoid exploding loss
-        return Network.sawteeth(x + guess)
+        # FIXME somehow all these periodic outputs don't really work yet --
+        #       usually training is ok for like 40 epochs and then the loss explodes
+        #       and remains almost constant
+        #       --> seems to indicate that we get stuck somewhere,
+        #           maybe we should try a different method to `periodicize'
+        #return Network.sawteeth(x + guess)
+        return x + g
     
     
     @staticmethod
