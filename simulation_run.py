@@ -83,11 +83,14 @@ def get_runs(mode) :
                 run2 = SimulationRun(run_fname2)
 
                 # check if we want to include this value of the overdensity
-                if run1.delta_L < settings.DELTA_L_BOUNDS[0] \
-                   or run1.delta_L > settings.DELTA_L_BOUNDS[1] \
-                   or run2.delta_L < settings.DELTA_L_BOUNDS[0] \
+                if run2.delta_L < settings.DELTA_L_BOUNDS[0] \
                    or run2.delta_L > settings.DELTA_L_BOUNDS[1] :
                     continue
+
+                if not settings.ONLY_FROM_ZERO :
+                    if run1.delta_L < settings.DELTA_L_BOUNDS[0] \
+                       or run1.delta_L > settings.DELTA_L_BOUNDS[1] :
+                        continue
 
                 # all checks passed --> append to the output
                 run_pairs.append(tuple(sorted((run1, run2), key=lambda x : x.delta_L)))

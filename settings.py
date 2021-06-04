@@ -65,7 +65,7 @@ USE_DENSITY = ToSet(True)
 H_UNITS = False
 
 # in which range we want to train (can restrict initially to make task simpler)
-DELTA_L_BOUNDS = [0.0, ToSet(100)]
+DELTA_L_BOUNDS = [ToSet(0.0), ToSet(100)]
 
 # whether to attempt warm starting when loading a model from disk that doesn't
 # exactly fit the network architecture

@@ -49,6 +49,8 @@ class ArgParser :
                                  help='settings.NLEVELS : integer, number of UNet levels')
         self.parser.add_argument('--learningrate', type=float,
                                  help='settings.OPTIMIZER_ARGS[lr] : float, learning rate')
+        self.parser.add_argument('--deltaLmin', type=float,
+                                 help='settings.DELTA_L_BOUNDS[0]: float, minimum target Delta_L')
         self.parser.add_argument('--deltaLmax', type=float,
                                  help='settings.DELTA_L_BOUNDS[1]: float, maximum target Delta_L')
         self.parser.add_argument('--strictload', action='store_true',
@@ -92,6 +94,8 @@ class ArgParser :
             settings.RESIDUAL_ADD = settings.RESIDUAL_ADD.set(not args.residualconcat)
         if hasattr(args, 'skipconcat') :
             settings.SKIP_ADD = settings.SKIP_ADD.set(not args.skipconcat)
+        if hasattr(args, 'deltaLmin') :
+            settings.DELTA_L_BOUNDS[0] = settings.DELTA_L_BOUNDS[0].set(args.deltaLmin)
         if hasattr(args, 'deltaLmax') :
             settings.DELTA_L_BOUNDS[1] = settings.DELTA_L_BOUNDS[1].set(args.deltaLmax)
         if hasattr(args, 'strictload') :

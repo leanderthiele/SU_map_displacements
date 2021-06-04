@@ -52,6 +52,14 @@ class DataItem :
             self.HubbleParam = f['Parameters'].attrs['HubbleParam']
             self.BoxSize = f['Header'].attrs['BoxSize']
 
+        # FIXME for debugging purposes only
+        if False :
+            sim_utils.validate_part_pos(x1, self.BoxSize,
+                                        msg='%d %s high-z'%(settings.RANK, snap1_fname),
+                                        check=False)
+            sim_utils.validate_part_pos(x2, self.BoxSize,
+                                        msg='%d %s low-z'%(settings.RANK, snap2_fname))
+
         if not settings.H_UNITS :
             x1 /= self.HubbleParam
             x2 /= self.HubbleParam
