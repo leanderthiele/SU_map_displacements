@@ -454,7 +454,7 @@ class Block(nn.Module) :
             x = l(x, s)
 
         if self.residual :
-            if settings.RESULTS_PATH :
+            if settings.RESIDUAL_ADD :
                 x += xres
                 x /= math.sqrt(2) # against internal variance shift
             else :
