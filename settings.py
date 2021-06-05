@@ -77,6 +77,7 @@ WARMSTART = ToSet(True)
 SNAP_IDX = 14
 
 # particles and cells per side
+# NOTE this can't be a ToSet instance as we use it in remove_locks.py
 NSIDE = 128
 
 # sidelength of the glass files -- we need this to reorder the particles properly
@@ -93,7 +94,18 @@ GLASS_SIDE = 64
 #            density_<NSIDE>.npz/
 #              'density' (in h-units, np.float32)
 #              'h' (hubble parameter)
+# NOTE this can't be a ToSet instance as we use it in remove_locks.py
 DATA_PATH = '/projects/QUIJOTE/Leander/SU/ML_fixed_cosmo_DMonly_128'
+
+# how many seconds to wait for a file to become unlocked
+# we use file locks to make sure we don't read from hdf5, npy, npz files concurrently
+# -- I'm not sure if this is an issue at all but I experienced problems with this
+#    in the DM_to_electrons project (in that case we used MPI to synchronize concurrent hdf5 reads,
+#                                    but this is perhaps not the best solution here as parallelism
+#                                    is rather complicated in this code, there are two levels, one from
+#                                    srun and the other from potentially multiple workers)
+LOCK_EXTENSION = 'LCK'
+LOCK_TIMEOUT = 10.0
 
 # note : the actual batch size is num_GPUs * DATALOADER_ARGS[batch_size] * BATCH_SIZE
 #        in practice, the dataloader batch size can only be 1 because otherwise
@@ -152,6 +164,7 @@ LEAKYRELU_SLOPE = ToSet(0.1)
 NSTYLES = 1
 
 # where we store the parameters required for the normalization functions 
+# NOTE this can't be a ToSet instance as we use it in remove_locks.py
 NORMALIZATION_FILE = 'normalization_128.npz'
 
 # dicts that store lambda functions for the normalization

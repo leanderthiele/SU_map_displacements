@@ -5,6 +5,7 @@ Defines the classes
 which we use to organize our training data.
 """
 
+from filelock import FileLock
 
 import numpy as np
 import h5py
@@ -33,10 +34,13 @@ class DataItem :
         self.delta_L = run.delta_L
 
         if settings.USE_DENSITY :
-            with np.load(run.density_fname()) as f :
-                self.density = f['density']
-                if not settings.H_UNITS :
-                    self.density *= f['h']**2
+            density_fname = run.density_fname()
+            with FileLock('%s.%s'%(density_fname, settings.LOCK_EXTENSION),
+                          timeout=settings.LOCK_TIMEOUT) :
+                with np.load(density_fname) as f :
+                    self.density = f['density']
+                    if not settings.H_UNITS :
+                        self.density *= f['h']**2
             # it's useful to have the channel dimension explicit
             self.density = np.expand_dims(self.density, 0)
         else :
@@ -48,9 +52,11 @@ class DataItem :
         x1 = sim_utils.load_particles(snap1_fname)
         x2 = sim_utils.load_particles(snap2_fname)
 
-        with h5py.File(snap2_fname, 'r') as f :
-            self.HubbleParam = f['Parameters'].attrs['HubbleParam']
-            self.BoxSize = f['Header'].attrs['BoxSize']
+        with FileLock('%s.%s'%(snap2_fname, settings.LOCK_EXTENSION),
+                      timeout=settings.LOCK_TIMEOUT) :
+            with h5py.File(snap2_fname, 'r') as f :
+                self.HubbleParam = f['Parameters'].attrs['HubbleParam']
+                self.BoxSize = f['Header'].attrs['BoxSize']
 
         # FIXME for debugging purposes only
         if False :

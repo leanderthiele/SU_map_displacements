@@ -124,6 +124,8 @@ def load_loss() :
     loss curve even if we have to interrupt training at some point.
     """
 #{{{
+    assert settings.RANK == 0
+
     try :
         with np.load(settings.LOSS_FILE) as f :
             start_epoch = int(f['validation_times'][-1])

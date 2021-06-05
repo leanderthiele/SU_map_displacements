@@ -1,3 +1,4 @@
+from filelock import FileLock
 from time import time
 
 import numpy as np
@@ -89,8 +90,10 @@ def load_particles(fname) :
     which undoes the tiling performed by 2lpt).
     """
 #{{{ 
-    with h5py.File(fname, 'r') as f :
-        x = f['PartType1/Coordinates'][...][np.argsort(f['PartType1/ParticleIDs'][...]), :]
+    with FileLock('%s.%s'%(fname, settings.LOCK_EXTENSION),
+                  timeout=settings.LOCK_TIMEOUT) :
+        with h5py.File(fname, 'r') as f :
+            x = f['PartType1/Coordinates'][...][np.argsort(f['PartType1/ParticleIDs'][...]), :]
 
     assert x.shape[0] == settings.NSIDE**3
     assert x.shape[1] == 3

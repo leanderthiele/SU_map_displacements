@@ -13,6 +13,7 @@ import os
 import os.path
 import warnings
 import tempfile
+from filelock import FileLock
 import argparse
 import numpy as np
 
@@ -128,13 +129,16 @@ def load_normalizations() :
         = settings.DENSITY_NORMALIZATIONS.set(dict())
     settings.DISPLACEMENT_NORMALIZATIONS \
         = settings.DISPLACEMENT_NORMALIZATIONS.set(dict())
-    with np.load(settings.NORMALIZATION_FILE) as f :
-        for mode in data_loader.DataModes :
-            sigma_displacement, sigma_density, A, B = f[str(mode)]
-            settings.DENSITY_NORMALIZATIONS[mode] \
-                = lambda x, s=sigma_density, a=A, b=B : a * ( np.log1p(x/s) - b )
-            settings.DISPLACEMENT_NORMALIZATIONS[mode] \
-                = lambda x, s=sigma_displacement : x/s
+
+    with FileLock('%s.%s'%(settings.NORMALIZATION_FILE, settings.LOCK_EXTENSION),
+                  timeout=settings.LOCK_TIMEOUT) :
+        with np.load(settings.NORMALIZATION_FILE) as f :
+            for mode in data_loader.DataModes :
+                sigma_displacement, sigma_density, A, B = f[str(mode)]
+                settings.DENSITY_NORMALIZATIONS[mode] \
+                    = lambda x, s=sigma_density, a=A, b=B : a * ( np.log1p(x/s) - b )
+                settings.DISPLACEMENT_NORMALIZATIONS[mode] \
+                    = lambda x, s=sigma_displacement : x/s
 
     settings.DELTA_L_NORMALIZATIONS \
         = settings.DELTA_L_NORMALIZATIONS.set(dict())
