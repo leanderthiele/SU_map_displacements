@@ -8,9 +8,27 @@ termination in previous runs does not leave us with stale locks.
 from glob import glob
 import os
 import os.path
+from time import time
+import subprocess
 import system
 
 import settings
+
+def is_old_file(fname) :
+#{{{
+    # in seconds
+    diff = time() - os.stat(fname).st_mtime
+
+    return diff > settings.SLURM_TIME_DIFF * 60
+#}}}
+
+
+def has_abort_msg(fname) :
+#{{{
+    last_lines = subprocess.getoutput('tail -n 5 %s'%fname)
+    indicators = ['slurmstepd', 'Error']
+    return any([indicator in last_lines for indicator in indicators])
+#}}}
 
 
 def other_slurm_job_running() :
@@ -21,9 +39,23 @@ def other_slurm_job_running() :
     """
 #{{{
 
-    # TODO a possible way to do this would be to glob for the slurm*.out files in this directory
-    #      and check whether any of them has recently been changed
-    #      (apart from the one corresponding to the current process of course)
+    # look for slurm output files
+    slurm_files = glob('slurm-*.out')
+
+    try :
+        slurm_files.remove('slurm-%s.out'%os.environ['SLURM_JOB_ID'])
+    except ValueError :
+        raise RuntimeError('Unable to find the slurm output file this job is writing to!')
+
+    # loop through the remaining slurm output files and see if there is one that
+    # is currently being written to -- we take this as indication
+    # that there's another job running
+    for slurm_file in slurm_files :
+        if not ( has_abort_msg(slurm_file) or is_old_file(slurm_file) ) :
+            print('Found active slurm job besides ourselves writing to %s'%slurm_file)
+            return True
+
+    print('Did not find active slurm job besides ourselves')
     return False
 
 #}}}
@@ -102,11 +134,16 @@ def main() :
     """
 #{{{
 
+    if settings.STARTUP_CALLED :
+        raise RuntimeError('settings.STARTUP_CALLED is True')
+
     if not other_slurm_job_running() :
+        print('No other active slurm job identified, will remove lock files')
         remove_lock_files()
+    else :
+        print('Found another active slurm job, will not remove lock files')
 
 #}}}
-
 
 
 if __name__ == '__main__' :
