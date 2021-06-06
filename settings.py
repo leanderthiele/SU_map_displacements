@@ -39,13 +39,6 @@ class ToSet :
         return value
 #}}}
 
-# time in minutes for slurm output files to be considered as belonging to a finished job,
-# used in remove_locks.py
-# this should be safely longer than the interval we typically write into our output files
-# with and can be quite large since it is only a fallback option in case the output file
-# for a finished job does not end with some sort of error message
-SLURM_TIME_DIFF = 10.0
-
 # this one is simply for debugging purposes, functions that use variables from
 # this module can check whether they have a correct view
 STARTUP_CALLED = False

@@ -14,27 +14,13 @@ import system
 
 import settings
 
-def is_old_file(fname) :
-#{{{
-    # in seconds
-    diff = time() - os.stat(fname).st_mtime
-
-    return diff > settings.SLURM_TIME_DIFF * 60
-#}}}
-
-
-def has_abort_msg(fname) :
-#{{{
-    last_lines = subprocess.getoutput('tail -n 5 %s'%fname)
-    indicators = ['slurmstepd', 'Error']
-    return any([indicator in last_lines for indicator in indicators])
-#}}}
-
-
 def other_slurm_job_running() :
     """
     returns true if another already running slurm job is found that looks like it is also
     from this project.
+    The way we identify whether a job is from this project is by comparing with the slurm-*.out
+    files in the current directory. This is a bit hacky but should work as long as we do not
+    alter the naming convention or placement of these output files.
     returns false otherwise
     """
 #{{{
@@ -47,12 +33,16 @@ def other_slurm_job_running() :
     except ValueError :
         raise RuntimeError('Unable to find the slurm output file this job is writing to!')
 
+    # capture list of running slurm jobs, without the header
+    sacct = subprocess.getoutput('sacct -X -s r --noheader').split('\n')
+
     # loop through the remaining slurm output files and see if there is one that
     # is currently being written to -- we take this as indication
     # that there's another job running
     for slurm_file in slurm_files :
-        if not ( has_abort_msg(slurm_file) or is_old_file(slurm_file) ) :
-            print('Found active slurm job besides ourselves writing to %s'%slurm_file)
+        ident = slurm_file[6:-4]
+        if any([s.startswith(ident) for s in sacct]) :
+            print('Found active slurm job #%s besides ourselves'%ident)
             return True
 
     print('Did not find active slurm job besides ourselves')
