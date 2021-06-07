@@ -122,8 +122,14 @@ def training_process(rank) :
             # do the forward pass
             prediction = model(inputs, styles, guesses)
 
-            this_training_loss = loss_fn(prediction, targets)
-            this_training_loss_guess = loss_fn(guesses, targets)
+            if settings.NORM_LOSS :
+                # note the dim kwarg, we do not want to reduce over the batch dimension
+                guesses_std = torch.std(guesses - targets, dim=(1,2,3,4))
+            else :
+                guesses_std = 1.0
+
+            this_training_loss = loss_fn(prediction/guesses_std, targets/guesses_std)
+            this_training_loss_guess = loss_fn(guesses/guesses_std, targets/guesses_std)
 
             # update the loss storage
             training_loss[t] = this_training_loss.item()
@@ -177,8 +183,15 @@ def training_process(rank) :
                 inputs, targets, guesses, styles = data.get_on_device()
 
                 prediction = model(inputs, styles, guesses)
-                validation_loss += loss_fn(prediction, targets).item()
-                validation_loss_guess += loss_fn(guesses, targets).item()
+
+                if settings.NORM_LOSS :
+                    # note the dim kwarg, we do not want to reduce over the batch dimension
+                    guesses_std = torch.std(guesses - targets, dim=(1,2,3,4))
+                else :
+                    guesses_std = 1.0
+
+                validation_loss += loss_fn(prediction/guesses_std, targets/guesses_std).item()
+                validation_loss_guess += loss_fn(guesses/guesses_std, targets/guesses_std).item()
 
         # normalize (per data item)
         validation_loss /= len(validation_loader)

@@ -58,6 +58,8 @@ class ArgParser :
                                  help='~ settings.WARMSTART : strict check that model on disk fits architecture')
         self.parser.add_argument('--leakyreluslope', type=float,
                                  help='settings.LEAKYRELU_SLOPE')
+        self.parser.add_argument('--normloss', action='store_true',
+                                 help='settings.NORM_LOSS : whether to normalize the loss')
 
 
     def __init__(self) :
@@ -103,6 +105,8 @@ class ArgParser :
             settings.WARMSTART = settings.WARMSTART.set(not args.strictload)
         if hasattr(args, 'leakyreluslope') :
             settings.LEAKYRELU_SLOPE = settings.LEAKYRELU_SLOPE.set(args.leakyreluslope)
+        if hasattr(args, 'normloss') :
+            settings.NORM_LOSS = settings.NORM_LOSS.set(args.normloss)
 #}}}
 
 

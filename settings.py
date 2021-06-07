@@ -172,6 +172,10 @@ DENSITY_NORMALIZATIONS = ToSet(None)
 DISPLACEMENT_NORMALIZATIONS = ToSet(None)
 DELTA_L_NORMALIZATIONS = ToSet(None)
 
+# whether we want to normalize the loss -- this will give about equal weight to all samples,
+# irrespective of the overdensity
+NORM_LOSS = ToSet(False)
+
 # set this to a high number and train until time is up
 EPOCHS = 1000
 
