@@ -10,7 +10,6 @@ import os
 import os.path
 from time import time
 import subprocess
-import system
 
 import settings
 
@@ -64,7 +63,7 @@ def remove_lock_file(fname) :
 
     # check that extension is as expected
     _, ext = os.path.splitext(fname)
-    if not ext == settings.LOCK_EXTENSION :
+    if not ext == '.%s'%settings.LOCK_EXTENSION :
         raise RuntimeError(f'{fname} does not have the lock file extension')
 
     # check that the file actually exists
@@ -92,7 +91,7 @@ def remove_lock_files() :
 #{{{
 
     # first we remove the locks from the hdf5 snap files and npz density field files
-    seed_dirs = glob(settings.DATA_PATH+'/seed*'))
+    seed_dirs = glob(settings.DATA_PATH+'/seed*')
     for seed_dir in seed_dirs :
         run_dirs = glob(seed_dir+'/*[m,p]')
         for run_dir in run_dirs :
