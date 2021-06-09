@@ -547,3 +547,27 @@ class Level(nn.Module) :
 
         return x
 #}}}
+
+class StyleToScalar(nn.Module) :
+    """
+    A small multi-layer perceptron that is able to convert a Style into some number
+    """
+#{{{
+    def __init__(self) :
+        
+        super().__init__()
+        Nhidden = 5
+        self.relu = torch.nn.LeakyReLU()
+        self.fc1 = torch.nn.Linear(settings.NSTYLES, Nhidden)
+        self.fc2 = torch.nn.Linear(Nhidden, Nhidden)
+        self.fc3 = torch.nn.Linear(Nhidden, 1)
+
+    def forward(self, s) :
+        x = self.fc1(s)
+        x = self.relu(x)
+        x = self.fc2(x)
+        x = self.relu(x)
+        x = self.fc3(x)
+        x = self.relu(x)
+        return x
+#}}}

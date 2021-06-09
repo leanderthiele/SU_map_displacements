@@ -7,7 +7,8 @@ import math
 import numpy as np
 
 import settings
-from data_loader import DataModes, Dataset
+from data_loader import DataModes
+from simulation_run import get_runs
 from data_item import DataItem
 
 # FIXME
@@ -45,7 +46,7 @@ def normalization(mode) :
 #{{{
     assert settings.USE_DENSITY # for convienience
 
-    dataset = Dataset(mode) # we do this in a single process, so we set rank and world_size to 0, 1
+    run_pairs = get_runs(mode) # we do this in a single process, so we set rank and world_size to 0, 1
 
     # make a first pass through the data, computing the variances
     # note that we're using the fact that mean(displacement) ~ 0
@@ -54,14 +55,14 @@ def normalization(mode) :
     var_displacement = 0.0
     var_density = 0.0
 
-    for run_pair in dataset.run_pairs :
+    for run_pair in run_pairs :
         print('In normalization.py, first loop, %s'%str(run_pair[0]))
         item = DataItem(mode, run_pair[0]) # we only want to normalize the input
         var_displacement += np.var(item.displacement)
         var_density += np.var(item.density)
 
-    var_displacement /= len(dataset.run_pairs)
-    var_density /= len(dataset.run_pairs)
+    var_displacement /= len(run_pairs)
+    var_density /= len(run_pairs)
 
     # make a second pass through the data, now computing the variance and mean
     # of the already transformed density field
@@ -71,15 +72,15 @@ def normalization(mode) :
     var_logdensity = 0.0
     avg_logdensity = 0.0
 
-    for run_pair in dataset.run_pairs :
+    for run_pair in run_pairs :
         print('In normalization.py, second loop, %s'%str(run_pair[0]))
         item = DataItem(mode, run_pair[0])
         logdensity = np.log1p( item.density / DENSITY_FACTOR / math.sqrt(var_density) )
         var_logdensity += np.sum(logdensity**2) / logdensity.size
         avg_logdensity += np.mean(logdensity)
 
-    avg_logdensity /= len(dataset.run_pairs)
-    var_logdensity /= len(dataset.run_pairs)
+    avg_logdensity /= len(run_pairs)
+    var_logdensity /= len(run_pairs)
     var_logdensity -= avg_logdensity**2
 
     return [ math.sqrt(var_displacement),

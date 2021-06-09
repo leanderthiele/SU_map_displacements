@@ -47,7 +47,7 @@ class SimulationRun :
 #}}}
 
 
-def get_runs(mode) :
+def get_runs(mode, deltaLbounds=[-np.inf, +np.inf]) :
     """
     returns a list of pairs of SimulationRun instances, corresponding to the current mode
     """
@@ -83,13 +83,13 @@ def get_runs(mode) :
                 run2 = SimulationRun(run_fname2)
 
                 # check if we want to include this value of the overdensity
-                if run2.delta_L < settings.DELTA_L_BOUNDS[0] \
-                   or run2.delta_L > settings.DELTA_L_BOUNDS[1] :
+                if run2.delta_L < deltaLbounds[0] \
+                   or run2.delta_L > deltaLbounds[1] :
                     continue
 
                 if not settings.ONLY_FROM_ZERO :
-                    if run1.delta_L < settings.DELTA_L_BOUNDS[0] \
-                       or run1.delta_L > settings.DELTA_L_BOUNDS[1] :
+                    if run1.delta_L < deltaLbounds[0] \
+                       or run1.delta_L > deltaLbounds[1] :
                         continue
 
                 # all checks passed --> append to the output

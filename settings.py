@@ -105,7 +105,7 @@ DATA_PATH = '/projects/QUIJOTE/Leander/SU/ML_fixed_cosmo_DMonly_128'
 #                                    is rather complicated in this code, there are two levels, one from
 #                                    srun and the other from potentially multiple workers)
 LOCK_EXTENSION = 'LCK'
-LOCK_TIMEOUT = 10.0
+LOCK_TIMEOUT = 100.0
 
 # note : the actual batch size is num_GPUs * DATALOADER_ARGS[batch_size] * BATCH_SIZE
 #        in practice, the dataloader batch size can only be 1 because otherwise
@@ -159,6 +159,10 @@ SKIP_ADD = ToSet(True)
 
 # leaky relu slope -- default is what I tried first
 LEAKYRELU_SLOPE = ToSet(0.1)
+
+# whether we want to give the network the freedom to rescale the guess
+# with a function of the overdensity
+RESCALE_GUESS = ToSet(True)
 
 # number of styles, 1 for delta_L only
 NSTYLES = 1

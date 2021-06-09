@@ -60,6 +60,8 @@ class ArgParser :
                                  help='settings.LEAKYRELU_SLOPE')
         self.parser.add_argument('--normloss', action='store_true',
                                  help='settings.NORM_LOSS : whether to normalize the loss')
+        self.parser.add_argument('--rescaleguess', action='store_true',
+                                 help='settings.RESCALE_GUESS : whether to rescale the guess with a function of the overdensity')
 
 
     def __init__(self) :
@@ -107,6 +109,8 @@ class ArgParser :
             settings.LEAKYRELU_SLOPE = settings.LEAKYRELU_SLOPE.set(args.leakyreluslope)
         if hasattr(args, 'normloss') :
             settings.NORM_LOSS = settings.NORM_LOSS.set(args.normloss)
+        if hasattr(args, 'rescaleguess') :
+            settings.RESCALE_GUESS = settings.RESCALE_GUESS.set(args.rescaleguess)
 #}}}
 
 

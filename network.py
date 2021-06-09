@@ -9,7 +9,7 @@ import torch.nn as nn
 from torch.nn.parallel import DistributedDataParallel
 
 import settings
-from network_utils import Activations, Layout, Block, Level
+from network_utils import Activations, Layout, Block, Level, StyleToScalar
 
 
 class Network(nn.Module) :
@@ -71,6 +71,11 @@ class Network(nn.Module) :
         # construct the through-block at the bottom
         self.block_through = Block(tmp_layout, tmp_layout)
 
+        if settings.RESCALE_GUESS :
+            self.rescaler = StyleToScalar()
+        else :
+            self.rescaler = None
+
         if settings.RANK == 0 :
             print('Network : through-layout = %s'%str(tmp_layout))
 
@@ -96,6 +101,11 @@ class Network(nn.Module) :
         x = self.block_out(x, s)
 
         x = self.collapse(x, s)
+
+        if self.rescaler is not None :
+            # we add one here -- this may not be necessary but could be slightly better
+            # initially
+            g *= 1 + self.rescaler(s)
 
         # map to [-0.5, 0.5] to avoid exploding loss
         # FIXME somehow all these periodic outputs don't really work yet --
