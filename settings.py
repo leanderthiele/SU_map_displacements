@@ -180,11 +180,11 @@ DELTA_L_NORMALIZATIONS = ToSet(None)
 # irrespective of the overdensity
 NORM_LOSS = ToSet(False)
 
-# set this to a high number and train until time is up
-EPOCHS = 1000
+# this is actually important, because it influences the learning rate scheduler
+EPOCHS = 50
 
 # note that these are somewhat dependent on the specific optimizer chosen in train_utils.py
-OPTIMIZER_ARGS = dict(lr=ToSet(1e-3),
+OPTIMIZER_ARGS = dict(lr=ToSet(1e-3), # TODO currently, I think this is not used because the learning rate scheduler override it
                       betas=(0.5, 0.999), # according to Paco, this may be better than the default (0.9, 0.999)
                       eps=1e-8, # default value from pytorch docs
                       weight_decay=0.0, # L2 penalty

@@ -44,11 +44,15 @@ def training_process(rank) :
     
     loss_fn = Loss()
 
+    training_loader = DataLoader(DataModes.TRAINING)
+    validation_loader = DataLoader(DataModes.VALIDATION)
+
     # reset the optimizer -- not sure if it is necessary here but can't hurt
     optimizer.zero_grad()
 
-    training_loader = DataLoader(DataModes.TRAINING)
-    validation_loader = DataLoader(DataModes.VALIDATION)
+    scheduler = torch.optim.lr_scheduler.OneCycleLR(optimizer, max_lr=1e-1,
+                                                    steps_per_epoch=len(training_loader),
+                                                    epochs=settings.EPOCHS)
 
     # load previous loss if it exists
     if settings.RANK == 0 :
@@ -167,6 +171,7 @@ def training_process(rank) :
             if should_update_weights :
                 # each process sees the same gradients and can therefore do the same weight updates
                 optimizer.step()
+                scheduler.step()
                 optimizer.zero_grad()
                 idx_in_batch = 0
             
