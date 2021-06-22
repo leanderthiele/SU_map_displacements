@@ -105,7 +105,9 @@ class Network(nn.Module) :
         if self.rescaler is not None :
             # we add one here -- this may not be necessary but could be slightly better
             # initially
-            g *= 1 + self.rescaler(s)
+            # NOTE that we don't want to have an in-place op here since otherwise we are modifying
+            #      the passed guess tensor
+            g = g * (1 + self.rescaler(s))
 
         # map to [-0.5, 0.5] to avoid exploding loss
         # FIXME somehow all these periodic outputs don't really work yet --
@@ -114,7 +116,7 @@ class Network(nn.Module) :
         #       --> seems to indicate that we get stuck somewhere,
         #           maybe we should try a different method to `periodicize'
         #return Network.sawteeth(x + guess)
-        return x + g
+        return g, x + g
     
     
     @staticmethod

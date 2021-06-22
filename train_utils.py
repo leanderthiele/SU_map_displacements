@@ -45,6 +45,7 @@ class Optimizer(torch.optim.Adam) :
 
 def do_diagnostic_output(training_loss, validation_loss,
                          training_loss_guess, validation_loss_guess,
+                         training_loss_guess_rescaled, validation_loss_guess_rescaled,
                          Nepochs, epoch_len) :
     """
     saves the various losses to disk
@@ -57,7 +58,9 @@ def do_diagnostic_output(training_loss, validation_loss,
                                  training_loss=training_loss,
                                  validation_loss=validation_loss,
                                  training_loss_guess=training_loss_guess,
-                                 validation_loss_guess=validation_loss_guess)
+                                 validation_loss_guess=validation_loss_guess
+                                 training_loss_guess_rescaled=training_loss_guess_rescaled,
+                                 validation_loss_guess_rescaled=validation_loss_guess_rescaled)
 #}}}
 
 
@@ -133,10 +136,14 @@ def load_loss() :
             validation_loss = f['validation_loss']
             training_loss_guess = f['training_loss_guess']
             validation_loss_guess = f['validation_loss_guess']
+            training_loss_guess_rescaled = f['training_loss_guess_rescaled']
+            validation_loss_guess_rescaled = f['validation_loss_guess_rescaled']
         print('starting at epoch %d'%start_epoch)
-        return start_epoch, training_loss, validation_loss, training_loss_guess, validation_loss_guess
+        return start_epoch, training_loss, validation_loss, \
+               training_loss_guess, validation_loss_guess, \
+               training_loss_guess_rescaled, validation_loss_guess_rescaled
     except OSError :
-        return 0, np.empty(0), np.empty(0), np.empty(0), np.empty(0)
+        return 0, np.empty(0), np.empty(0), np.empty(0), np.empty(0), np.empty(0), np.empty(0)
 #}}}
 
 

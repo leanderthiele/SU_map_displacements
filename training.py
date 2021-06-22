@@ -53,7 +53,9 @@ def training_process(rank) :
     # load previous loss if it exists
     if settings.RANK == 0 :
         start_epoch, all_epochs_training_loss, all_epochs_validation_loss, \
-            all_epochs_training_loss_guess, all_epochs_validation_loss_guess = train_utils.load_loss()
+            all_epochs_training_loss_guess, all_epochs_validation_loss_guess \
+            all_epochs_training_loss_guess_rescaled, all_epochs_validation_loss_guess_rescaled \
+                = train_utils.load_loss()
         start_epoch_list = [start_epoch, ]
     else :
         start_epoch_list = [-1, ]
@@ -87,8 +89,10 @@ def training_process(rank) :
         # because we can catch bugs more easily
         training_loss = np.full(len(training_loader), -1.0)
         training_loss_guess = np.full(len(training_loader), -1.0)
+        training_loss_guess_rescaled = np.full(len(training_loader), -1.0)
         validation_loss = 0.0
         validation_loss_guess = 0.0
+        validation_loss_guess_rescaled = 0.0
 
         # set model into training mode
         model.train()
@@ -120,7 +124,7 @@ def training_process(rank) :
             batch_done = idx_in_batch > settings.BATCH_SIZE
 
             # do the forward pass
-            prediction = model(inputs, styles, guesses)
+            guesses_rescaled, prediction = model(inputs, styles, guesses)
 
             if settings.NORM_LOSS :
                 # note the dim kwarg, we do not want to reduce over the batch dimension
@@ -130,10 +134,12 @@ def training_process(rank) :
 
             this_training_loss = loss_fn(prediction/guesses_std, targets/guesses_std)
             this_training_loss_guess = loss_fn(guesses/guesses_std, targets/guesses_std)
+            this_training_loss_guess_rescaled = loss_fn(guesses_rescaled/guesses_std, targets/guesses_std)
 
             # update the loss storage
             training_loss[t] = this_training_loss.item()
             training_loss_guess[t] = this_training_loss_guess.item()
+            training_loss_guess_rescaled[t] = this_training_loss_guess_rescaled.item()
 
             # check whether we need to disable synchronization because
             # at least one process had a problem
@@ -182,7 +188,7 @@ def training_process(rank) :
 
                 inputs, targets, guesses, styles = data.get_on_device()
 
-                prediction = model(inputs, styles, guesses)
+                guesses_rescaled, prediction = model(inputs, styles, guesses)
 
                 if settings.NORM_LOSS :
                     # note the dim kwarg, we do not want to reduce over the batch dimension
@@ -192,10 +198,12 @@ def training_process(rank) :
 
                 validation_loss += loss_fn(prediction/guesses_std, targets/guesses_std).item()
                 validation_loss_guess += loss_fn(guesses/guesses_std, targets/guesses_std).item()
+                validation_loss_guess_rescaled += loss_fn(guesses_rescaled/guesses_std, targets/guesses_std).item()
 
         # normalize (per data item)
         validation_loss /= len(validation_loader)
         validation_loss_guess /= len(validation_loader)
+        validation_loss_guess_rescaled /= len(validation_loader)
 
         if settings.RANK == 0 and settings.VERBOSE :
             print('\tLoop through validation set took %f seconds'%(time()-start_time_validation))
@@ -206,36 +214,47 @@ def training_process(rank) :
         # buffers for gathering
         all_training_loss = [np.empty(0), ] * settings.WORLD_SIZE
         all_training_loss_guess = [np.empty(0), ] * settings.WORLD_SIZE
+        all_training_loss_guess_rescaled = [np.empty(0), ] * settings.WORLD_SIZE
         all_validation_loss = [0.0, ] * settings.WORLD_SIZE
         all_validation_loss_guess = [0.0, ] * settings.WORLD_SIZE
+        all_validation_loss_guess_rescaled = [0.0, ] * settings.WORLD_SIZE
 
         # gather the loss values from all processes
         # note that only the 0th process actually needs them,
         # but gather_object is not supported when using NCCL
         torch.distributed.all_gather_object(all_training_loss, training_loss)
         torch.distributed.all_gather_object(all_training_loss_guess, training_loss_guess)
+        torch.distributed.all_gather_object(all_training_loss_guess_rescaled, training_loss_guess)
         torch.distributed.all_gather_object(all_validation_loss, validation_loss)
         torch.distributed.all_gather_object(all_validation_loss_guess, validation_loss_guess)
+        torch.distributed.all_gather_object(all_validation_loss_guess_rescaled, validation_loss_guess)
 
 
         if settings.RANK == 0 :
             # interleave the training loss arrays so the losses are temporally correctly ordered
             all_training_loss = np.sqrt(np.vstack(all_training_loss).reshape((-1,), order='F'))
             all_training_loss_guess = np.sqrt(np.vstack(all_training_loss_guess).reshape((-1,), order='F'))
+            all_training_loss_guess_rescaled = np.sqrt(np.vstack(all_training_loss_guess_rescaled).reshape((-1,), order='F'))
             all_validation_loss = np.sqrt(np.array(all_validation_loss))
             all_validation_loss_guess = np.sqrt(np.array(all_validation_loss_guess))
+            all_validation_loss_guess_rescaled = np.sqrt(np.array(all_validation_loss_guess_rescaled))
 
             all_epochs_training_loss = np.concatenate((all_epochs_training_loss,
                                                        all_training_loss))
             all_epochs_training_loss_guess = np.concatenate((all_epochs_training_loss_guess,
                                                              all_training_loss_guess))
+            all_epochs_training_loss_guess_rescaled = np.concatenate((all_epochs_training_loss_guess_rescaled,
+                                                                      all_training_loss_guess_rescaled))
             all_epochs_validation_loss = np.concatenate((all_epochs_validation_loss,
                                                          all_validation_loss))
             all_epochs_validation_loss_guess = np.concatenate((all_epochs_validation_loss_guess,
                                                                all_validation_loss_guess))
+            all_epochs_validation_loss_guess_rescaled = np.concatenate((all_epochs_validation_loss_guess_rescaled,
+                                                                        all_validation_loss_guess_rescaled))
 
             train_utils.do_diagnostic_output(all_epochs_training_loss, all_epochs_validation_loss,
                                              all_epochs_training_loss_guess, all_epochs_validation_loss_guess,
+                                             all_epochs_training_loss_guess_rescaled, all_epochs_validation_loss_guess_rescaled,
                                              epoch+1, len(training_loader))
 
             train_utils.save_model(model, optimizer)
