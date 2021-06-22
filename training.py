@@ -57,7 +57,7 @@ def training_process(rank) :
     # load previous loss if it exists
     if settings.RANK == 0 :
         start_epoch, all_epochs_training_loss, all_epochs_validation_loss, \
-            all_epochs_training_loss_guess, all_epochs_validation_loss_guess \
+            all_epochs_training_loss_guess, all_epochs_validation_loss_guess, \
             all_epochs_training_loss_guess_rescaled, all_epochs_validation_loss_guess_rescaled \
                 = train_utils.load_loss()
         start_epoch_list = [start_epoch, ]
