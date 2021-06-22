@@ -65,7 +65,7 @@ USE_DENSITY = ToSet(True)
 H_UNITS = False
 
 # in which range we want to train (can restrict initially to make task simpler)
-DELTA_L_BOUNDS = [ToSet(0.0), ToSet(100)]
+DELTA_L_BOUNDS = [ToSet(-100.0), ToSet(100.0)]
 
 # whether to attempt warm starting when loading a model from disk that doesn't
 # exactly fit the network architecture
@@ -95,7 +95,7 @@ GLASS_SIDE = 64
 #              'density' (in h-units, np.float32)
 #              'h' (hubble parameter)
 # NOTE this can't be a ToSet instance as we use it in remove_locks.py
-DATA_PATH = '/projects/QUIJOTE/Leander/SU/ML_fixed_cosmo_DMonly_128'
+DATA_PATH = '/projects/QUIJOTE/Leander/SU/ML_fixed_cosmo_DMonly_100Mpc_128'
 
 # how many seconds to wait for a file to become unlocked
 # we use file locks to make sure we don't read from hdf5, npy, npz files concurrently
@@ -169,7 +169,7 @@ NSTYLES = 1
 
 # where we store the parameters required for the normalization functions 
 # NOTE this can't be a ToSet instance as we use it in remove_locks.py
-NORMALIZATION_FILE = 'normalization_128.npz'
+NORMALIZATION_FILE = 'normalization_100Mpc_128.npz'
 
 # dicts that store lambda functions for the normalization
 DENSITY_NORMALIZATIONS = ToSet(None)
@@ -191,7 +191,7 @@ OPTIMIZER_ARGS = dict(lr=ToSet(1e-3),
                       amsgrad=False)
 
 # where all data products will go
-RESULTS_PATH = 'results'
+RESULTS_PATH = 'results_100Mpc'
 
 # where we store the training and validation loss
 LOSS_FILE = ToSet(RESULTS_PATH+'/loss.npz')

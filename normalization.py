@@ -25,6 +25,7 @@ from data_item import DataItem
 
 DENSITY_FACTOR = 10.0
 
+
 def normalization(mode) :
     """
     We normalize using the functions :
@@ -46,7 +47,7 @@ def normalization(mode) :
 #{{{
     assert settings.USE_DENSITY # for convienience
 
-    run_pairs = get_runs(mode) # we do this in a single process, so we set rank and world_size to 0, 1
+    run_pairs = get_runs(mode, use_bounds=False) # we do this in a single process, so we set rank and world_size to 0, 1
 
     # make a first pass through the data, computing the variances
     # note that we're using the fact that mean(displacement) ~ 0
