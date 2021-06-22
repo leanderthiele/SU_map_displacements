@@ -49,7 +49,7 @@ class Dataset(torch_Dataset) :
 
         self.mode = mode 
 
-        self.run_pairs = get_runs(self.mode)
+        self.run_pairs = get_runs(self.mode, check_exists=True)
 
         if settings.RANK == 0 :
             print('%d samples in the %s set'%(len(self.run_pairs), str(mode)))

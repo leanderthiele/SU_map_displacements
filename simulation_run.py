@@ -47,9 +47,11 @@ class SimulationRun :
 #}}}
 
 
-def get_runs(mode, use_bounds=True) :
+def get_runs(mode, use_bounds=True, check_exists=False) :
     """
     returns a list of pairs of SimulationRun instances, corresponding to the current mode
+    use_bounds ... whether the DELTA_L_BOUNDS is used
+    check_exists ... whether we check whether snapshots we need actually exist
     """
 #{{{
     seed_dirs = glob(settings.DATA_PATH+'/seed*')
@@ -92,6 +94,20 @@ def get_runs(mode, use_bounds=True) :
                         if run1.delta_L < settings.DELTA_L_BOUNDS[0] \
                            or run1.delta_L > settings.DELTA_L_BOUNDS[1] :
                             continue
+
+                if check_exists :
+                    if not os.path.isfile(run1.reference_snap_fname()) :
+                        print('Could not find %s'%run1.reference_snap_fname())
+                        continue
+                    elif not os.path.isfile(run1.snap_fname()) :
+                        print('Could not find %s'%run1.snap_fname())
+                        continue
+                    elif not os.path.isfile(run2.reference_snap_fname()) :
+                        print('Could not find %s'%run2.reference_snap_fname())
+                        continue
+                    elif not os.path.isfile(run2.snap_fname()) :
+                        print('Could not find %s'%run2.snap_fname())
+                        continue
 
                 # all checks passed --> append to the output
                 run_pairs.append(tuple(sorted((run1, run2), key=lambda x : x.delta_L)))

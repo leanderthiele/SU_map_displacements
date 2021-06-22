@@ -151,7 +151,7 @@ def load_normalizations() :
     settings.DELTA_L_NORMALIZATIONS \
         = settings.DELTA_L_NORMALIZATIONS.set(dict())
     for mode in data_loader.DataModes :
-        run_pairs = simulation_run.get_runs(mode)
+        run_pairs = simulation_run.get_runs(mode, check_exists=True)
         delta_L_arr = np.array([run_pair[1].delta_L for run_pair in run_pairs])
         mean = np.mean(delta_L_arr)
         stddev = np.std(delta_L_arr)

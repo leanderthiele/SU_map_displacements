@@ -93,7 +93,9 @@ class DataItem :
 
         # TODO in principle, we could think about using the same normalization function
         #      everywhere here. Then it would simply be a collection of magic numbers.
-        # TODO we also need to normalize the overdensity
+
+        # FIXME as soon as we start learning something, we should definitely use the same
+        #       normalization function everywhere (i.e. the one estimated from the training set)
 
         assert self.tensor is None
         assert not self.is_normalized

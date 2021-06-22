@@ -105,8 +105,6 @@ class Network(nn.Module) :
         if self.rescaler is not None :
             # we add one here -- this may not be necessary but could be slightly better
             # initially
-            # FIXME
-            print('Using the rescaler')
             g *= 1 + self.rescaler(s)
 
         # map to [-0.5, 0.5] to avoid exploding loss
