@@ -58,7 +58,7 @@ def do_diagnostic_output(training_loss, validation_loss,
                                  training_loss=training_loss,
                                  validation_loss=validation_loss,
                                  training_loss_guess=training_loss_guess,
-                                 validation_loss_guess=validation_loss_guess
+                                 validation_loss_guess=validation_loss_guess,
                                  training_loss_guess_rescaled=training_loss_guess_rescaled,
                                  validation_loss_guess_rescaled=validation_loss_guess_rescaled)
 #}}}
